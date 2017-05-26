@@ -1,6 +1,7 @@
 #ifndef __NETFLOW_AUDIT_H__
 #define __NETFLOW_AUDIT_H__
 
+
 struct framehdr
 {
 	uint8_t srcmac[6];

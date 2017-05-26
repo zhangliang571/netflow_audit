@@ -6,7 +6,7 @@
 
 CC:=g++
 INCLUDE:=./
-LIBS:= -lpcap -lboost_date_time
+LIBS:= -lpthread -lpcap -lboost_date_time
 BIN:=netflow_audit
 SRCS:=$(wildcard *.c++)
 OBJS:=$(patsubst %.c++, %.o, $(SRCS))
