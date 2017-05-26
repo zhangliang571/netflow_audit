@@ -16,6 +16,6 @@ using namespace std;
 void _hex_dump(const u_char *p,int len);
 string inaddr_2_ip(uint32_t addr);
 int get_save_file_name(string strPath,string strTbl,string &strTmpFile,string &strFile);
-int ls_dir(string strPath,char *pfilter,char *suffix,vector<string> &v);
+int ls_dir(string strPath,const char *pfilter,const char *suffix,vector<string> &v);
 
 #endif

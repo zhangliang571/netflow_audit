@@ -17,7 +17,7 @@
 
 #include "netflow_audit.h"
 #include "date_time.h"
-#include "ethertype.h"
+#include "proto_type.h"
 #include "base.h"
 
 #define HAVE_PF_RING
@@ -29,6 +29,7 @@ using namespace std;
 CDateTime *g_Date; 
 //key is sport, value is dport
 map<int,int> g_mPorts[2];
+stTblItem g_tblitem;
 
 pcap_t* open_pcap(const char *dev)
 {
@@ -65,7 +66,7 @@ void close_pcap(pcap_t *pd)
 		pcap_close(pd);
 }
 
-int ip_layer_parse(u_short ether_type, const u_char* p, u_int length)
+int ip_layer_parse(const u_char* p, u_int length)
 {
 	struct iphdr *iph = NULL;
 	struct tcphdr *tcph = NULL;
@@ -73,31 +74,176 @@ int ip_layer_parse(u_short ether_type, const u_char* p, u_int length)
 	uint16_t sport,dport;
 
 	iph = (struct iphdr*)p;
+	if(ntohs(iph->tot_len) > length)
+		return -1;
 
-	if(iph->version == 0x4) 
+	//now just support ipv4
+	if(iph->version == IPPROTO_IPV4) 
 	{
 		switch(iph->protocol)
 		{
-			//TCP
-			case 0x6:
-				tcph = (struct tcphdr*)(iph + iph->ihl*4);
+			case IPPROTO_TCP:
+				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
 				sport = ntohs(tcph->source);
 				dport = ntohs(tcph->dest);
 				if(g_mPorts[0].find(sport) == g_mPorts[0].end())
 					g_mPorts[0][sport] = dport;
 				break;
-				//UDP
-			case 0x11:
-				udph = (struct udphdr*)(iph + iph->ihl*4);
+			case IPPROTO_UDP:
+				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
 				sport = ntohs(udph->source);
 				dport = ntohs(udph->dest);
 				if(g_mPorts[1].find(sport) == g_mPorts[1].end())
 					g_mPorts[1][sport] = dport;
 				break;
-			default:
-				return 0;
-		}
 
+#if 0
+			case IPPROTO_AH:
+				ipds->nh = *ipds->cp;
+				ipds->advance = ah_print(ipds->cp);
+				if (ipds->advance <= 0)
+					break;
+				ipds->cp += ipds->advance;
+				ipds->len -= ipds->advance;
+				goto again;
+
+			case IPPROTO_ESP:
+				{
+					int enh, padlen;
+					ipds->advance = esp_print(ndo, ipds->cp, ipds->len,
+							(const u_char *)ipds->ip,
+							&enh, &padlen);
+					if (ipds->advance <= 0)
+						break;
+					ipds->cp += ipds->advance;
+					ipds->len -= ipds->advance + padlen;
+					ipds->nh = enh & 0xff;
+					goto again;
+				}
+
+			case IPPROTO_IPCOMP:
+				{
+					int enh;
+					ipds->advance = ipcomp_print(ipds->cp, &enh);
+					if (ipds->advance <= 0)
+						break;
+					ipds->cp += ipds->advance;
+					ipds->len -= ipds->advance;
+					ipds->nh = enh & 0xff;
+					goto again;
+				}
+
+			case IPPROTO_SCTP:
+				sctp_print(ipds->cp, (const u_char *)ipds->ip, ipds->len);
+				break;
+
+			case IPPROTO_DCCP:
+				dccp_print(ipds->cp, (const u_char *)ipds->ip, ipds->len);
+				break;
+
+			case IPPROTO_ICMP:
+				/* pass on the MF bit plus the offset to detect fragments */
+				icmp_print(ipds->cp, ipds->len, (const u_char *)ipds->ip,
+						ipds->off & (IP_MF|IP_OFFMASK));
+				break;
+
+			case IPPROTO_PIGP:
+				/*
+				 * XXX - the current IANA protocol number assignments
+				 * page lists 9 as "any private interior gateway
+				 * (used by Cisco for their IGRP)" and 88 as
+				 * "EIGRP" from Cisco.
+				 *
+				 * Recent BSD <netinet/in.h> headers define
+				 * IP_PROTO_PIGP as 9 and IP_PROTO_IGRP as 88.
+				 * We define IP_PROTO_PIGP as 9 and
+				 * IP_PROTO_EIGRP as 88; those names better
+				 * match was the current protocol number
+				 * assignments say.
+				 */
+				igrp_print(ipds->cp, ipds->len, (const u_char *)ipds->ip);
+				break;
+
+			case IPPROTO_EIGRP:
+				eigrp_print(ipds->cp, ipds->len);
+				break;
+
+			case IPPROTO_ND:
+				ND_PRINT((ndo, " nd %d", ipds->len));
+				break;
+
+			case IPPROTO_EGP:
+				egp_print(ipds->cp, ipds->len);
+				break;
+
+			case IPPROTO_OSPF:
+				ospf_print(ipds->cp, ipds->len, (const u_char *)ipds->ip);
+				break;
+
+			case IPPROTO_IGMP:
+				igmp_print(ipds->cp, ipds->len);
+				break;
+
+			case IPPROTO_IPV4:
+				/* DVMRP multicast tunnel (ip-in-ip encapsulation) */
+				ip_print(ndo, ipds->cp, ipds->len);
+				if (! vflag) {
+					ND_PRINT((ndo, " (ipip-proto-4)"));
+					return;
+				}
+				break;
+
+#ifdef INET6
+			case IPPROTO_IPV6:
+				/* ip6-in-ip encapsulation */
+				ip6_print(ndo, ipds->cp, ipds->len);
+				break;
+#endif /*INET6*/
+
+			case IPPROTO_RSVP:
+				rsvp_print(ipds->cp, ipds->len);
+				break;
+
+			case IPPROTO_GRE:
+				/* do it */
+				gre_print(ipds->cp, ipds->len);
+				break;
+
+			case IPPROTO_MOBILE:
+				mobile_print(ipds->cp, ipds->len);
+				break;
+
+			case IPPROTO_PIM:
+				vec[0].ptr = ipds->cp;
+				vec[0].len = ipds->len;
+				pim_print(ipds->cp, ipds->len, in_cksum(vec, 1));
+				break;
+
+			case IPPROTO_VRRP:
+				if (packettype == PT_CARP) {
+					if (vflag)
+						(void)printf("carp %s > %s: ",
+								ipaddr_string(&ipds->ip->ip_src),
+								ipaddr_string(&ipds->ip->ip_dst));
+					carp_print(ipds->cp, ipds->len, ipds->ip->ip_ttl);
+				} else {
+					if (vflag)
+						(void)printf("vrrp %s > %s: ",
+								ipaddr_string(&ipds->ip->ip_src),
+								ipaddr_string(&ipds->ip->ip_dst));
+					vrrp_print(ipds->cp, ipds->len, ipds->ip->ip_ttl);
+				}
+				break;
+
+			case IPPROTO_PGM:
+				pgm_print(ipds->cp, ipds->len, (const u_char *)ipds->ip);
+				break;
+
+#endif
+			default:
+				break;
+		}
+		
 	}
 }
 
@@ -106,7 +252,7 @@ int ether_layer_parse(u_short ether_type, const u_char* p, u_int length)
 	switch (ether_type) 
 	{
 		case ETHERTYPE_IP:
-			ip_layer_parse(ether_type,p,length);
+			ip_layer_parse(p,length);
 			return (1);
 
 #if 0
@@ -226,22 +372,11 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 	u_int length = 0;
 	u_char *p = NULL;
 
-	#if 0
-	cout<<"timeval:"<<pkthdr->ts.tv_sec<<"."<<pkthdr->ts.tv_usec<<endl;
-	cout<<"time:"<<g_Date->timestamp_2_string(pkthdr->ts.tv_sec)<<endl;
-	cout<<"caplen:"<<pkthdr->caplen<<endl;
-	cout<<"len:"<<pkthdr->len<<endl;
-	cout<<"srcmac:"<<endl;
-	_hex_dump(fm->srcmac,6);
-	cout<<"dstmac:"<<endl;
-	_hex_dump(fm->dstmac,6);
-	#endif
-
 	length = pkthdr->caplen;
 	if(length < ETHER_HDRLEN)
 		return;
-
 	fm = (struct framehdr*)pkt;
+	
 	ethtype = ntohs(fm->ftype);
 	if(  ethtype == ETHERTYPE_8021Q
 	   ||ethtype == ETHERTYPE_8021Q9100
@@ -252,8 +387,26 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 		ethtype = ntohs(*ptype);
 		vlanlen = 4;
 	}
-	p = (u_char*)((u_char*)pkt + sizeof(struct framehdr)+ vlanlen);
-	length -= vlanlen;
+
+	p = (u_char*)((u_char*)pkt + sizeof(struct framehdr) + vlanlen);
+	length = length - sizeof(struct framehdr) - vlanlen;
+
+	g_tblitem.starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
+	memcpy(g_tblitem.smac,fm->srcmac,6);
+	memcpy(g_tblitem.dmac,fm->dstmac,6);
+	g_tblitem.reqflow += pkthdr->caplen;
+	#if 0
+	cout<<"time:"<<g_Date->timestamp_2_string(pkthdr->ts.tv_sec)<<endl;
+	cout<<"caplen:"<<pkthdr->caplen<<endl;
+	cout<<"len:"<<pkthdr->len<<endl;
+	cout<<"srcmac:";
+	_hex_dump(fm->srcmac,6);
+	cout<<"dstmac:";
+	_hex_dump(fm->dstmac,6);
+	cout<<"ftype:0x"<<hex<<ethtype<<dec<<endl;
+	cout<<"length:"<<length<<endl;
+	#endif
+
 	ether_layer_parse(ethtype, p, length);
 
 }
@@ -274,13 +427,17 @@ void user_signal(int iSigNum)
 		cout<<"\tsport:"<<itm->first<<"\tdport:"<<itm->second<<endl;
 	}
 }
+
+//load file into mysql
 void* db_import_handle(void* arg)
 {
 	vector<string> vsqlfile;
+	const char *pfilter = "wdd";
+	const char *suffix = ".txt";
 	pthread_detach(pthread_self());
 	while(1)
 	{
-		if(ls_dir(SAVE_FILE,"wdd",".txt",vsqlfile) > 0)
+		if(ls_dir(SAVE_FILE,pfilter, suffix,vsqlfile) > 0)
 		{
 			string bicmd = "mysqlimport  --local  --fields-enclosed-by=\\\" --fields-terminated-by=, -uroot -pa lzhang ";
 			string rmcmd = "rm -f ";
@@ -335,7 +492,7 @@ int main(int argc, char *argv[])
 		}
 		else if(ret == 0)
 		{
-			;//cout<<"pcap_dispatch() no catch packges......\n";
+			usleep(10);//cout<<"pcap_dispatch() no catch packges......\n";
 		}
 		else
 		{
