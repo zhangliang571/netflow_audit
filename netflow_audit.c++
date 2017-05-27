@@ -66,6 +66,18 @@ void close_pcap(pcap_t *pd)
 		pcap_close(pd);
 }
 
+void echo_g_tblitem()
+{
+	cout<<" starttime:"<<g_tblitem->starttime
+	    <<" endtime:"<<g_tblitem->endtime
+	    <<" ftype:"<<g_tblitem->ftype
+	    <<" sip:"<<g_tblitem->sip
+	    <<" dip:"<<g_tblitem->dip 
+            <<" sport:"<<g_tblitem->sport
+	    <<" dport:"<<g_tblitem->dport
+	    <<endl;
+}
+
 int ip_layer_parse(const u_char* p, u_int length)
 {
 	struct iphdr *iph = NULL;
@@ -90,15 +102,29 @@ int ip_layer_parse(const u_char* p, u_int length)
 				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
 				sport = ntohs(tcph->source);
 				dport = ntohs(tcph->dest);
+				g_tblitem->sport = sport;
+				g_tblitem->dport = dport;
+				g_tblitem->ftype = "TCP";
 				if(g_mPorts[0].find(sport) == g_mPorts[0].end())
 					g_mPorts[0][sport] = dport;
 					
-				if(tcph->syn == 1 && tcph->ack==1)
+				if(tcph->rst== 1 && tcph->ack==1)
+				{
+					cout<<"rst ..............\n";
+					g_tblitem->endtime = g_tblitem->starttime;
+					echo_g_tblitem();
+				}
+
+				else if(tcph->syn == 1 && tcph->ack==1)
 				cout<<"start tcp connect...............sip:"<<g_tblitem->sip<<" dip:"<<g_tblitem->dip \
 					<<"sport:"<<sport<<" dport:"<<dport<<endl;
 				else if(tcph->fin == 1 && tcph->ack==1)
-				cout<<"end   tcp connect...............sip:"<<g_tblitem->sip<<" dip:"<<g_tblitem->dip \
-					<<"sport:"<<sport<<" dport:"<<dport<<endl;
+				{
+					cout<<"end tcp ..............\n";
+					g_tblitem->endtime = g_tblitem->starttime;
+					echo_g_tblitem();
+				}
+
 				break;
 			case IPPROTO_UDP:
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
