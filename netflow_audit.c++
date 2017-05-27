@@ -29,7 +29,7 @@ using namespace std;
 CDateTime *g_Date; 
 //key is sport, value is dport
 map<int,int> g_mPorts[2];
-stTblItem g_tblitem;
+stTblItem* g_tblitem;
 
 pcap_t* open_pcap(const char *dev)
 {
@@ -80,14 +80,25 @@ int ip_layer_parse(const u_char* p, u_int length)
 	//now just support ipv4
 	if(iph->version == IPPROTO_IPV4) 
 	{
+		g_tblitem->sip = inaddr_2_ip(iph->saddr);	
+		g_tblitem->dip = inaddr_2_ip(iph->daddr);	
+	
 		switch(iph->protocol)
 		{
 			case IPPROTO_TCP:
+
 				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
 				sport = ntohs(tcph->source);
 				dport = ntohs(tcph->dest);
 				if(g_mPorts[0].find(sport) == g_mPorts[0].end())
 					g_mPorts[0][sport] = dport;
+					
+				if(tcph->syn == 1 && tcph->ack==1)
+				cout<<"start tcp connect...............sip:"<<g_tblitem->sip<<" dip:"<<g_tblitem->dip \
+					<<"sport:"<<sport<<" dport:"<<dport<<endl;
+				else if(tcph->fin == 1 && tcph->ack==1)
+				cout<<"end   tcp connect...............sip:"<<g_tblitem->sip<<" dip:"<<g_tblitem->dip \
+					<<"sport:"<<sport<<" dport:"<<dport<<endl;
 				break;
 			case IPPROTO_UDP:
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
@@ -391,10 +402,11 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 	p = (u_char*)((u_char*)pkt + sizeof(struct framehdr) + vlanlen);
 	length = length - sizeof(struct framehdr) - vlanlen;
 
-	g_tblitem.starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
-	memcpy(g_tblitem.smac,fm->srcmac,6);
-	memcpy(g_tblitem.dmac,fm->dstmac,6);
-	g_tblitem.reqflow += pkthdr->caplen;
+	g_tblitem = new stTblItem;
+	g_tblitem->starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
+	memcpy(g_tblitem->smac,fm->srcmac,6);
+	memcpy(g_tblitem->dmac,fm->dstmac,6);
+	g_tblitem->reqflow += pkthdr->caplen;
 	#if 0
 	cout<<"time:"<<g_Date->timestamp_2_string(pkthdr->ts.tv_sec)<<endl;
 	cout<<"caplen:"<<pkthdr->caplen<<endl;
@@ -408,6 +420,7 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 	#endif
 
 	ether_layer_parse(ethtype, p, length);
+	delete g_tblitem;
 
 }
 

@@ -14,6 +14,7 @@ struct framehdr
 
 typedef struct _stTblItem
 {
+	int id;
 	u_int auditid;
 	string starttime;
 	string endtime;
