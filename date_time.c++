@@ -34,6 +34,20 @@ string CDateTime::timestamp_2_string(time_t t)
 	return retstr;
 }
 
+void CDateTime::echo_time()
+{
+	time_t t;    
+	struct tm *tmp;
+	struct timeval tv;        
+	char buf[64];
+
+	gettimeofday(&tv,0);      
+	t = tv.tv_sec;
+	tmp = localtime(&t);      
+	snprintf(buf,64,"------time now------[%02d:%02d:%02d.%ld]\n",tmp->tm_hour,tmp->tm_min,tmp->tm_sec,tv.tv_usec);
+	cout<<buf;
+}
+
 #if 0
 void usage()
 {

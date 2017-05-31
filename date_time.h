@@ -24,6 +24,7 @@ public:
 	string current_time();
 	time_t date_time_2_timestamp(string strt);
 	string timestamp_2_string(time_t t);
+	void echo_time();
 
 };
 

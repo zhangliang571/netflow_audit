@@ -29,9 +29,117 @@ using namespace std;
 CDateTime *g_Date; 
 //key is sport, value is dport
 map<int,int> g_mPorts[2];
-stTblItem* g_tblitem;
+CNetflowAudit *g_NetflowAudit; 
 
-pcap_t* open_pcap(const char *dev)
+uint32_t g_count = 0;
+
+void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_char* pkt)
+{
+	assert(pkthdr!=NULL);
+	struct framehdr *fm = NULL;
+	uint16_t *ptype = NULL;
+	uint16_t ethtype = 0;
+	int vlanlen = 0;
+	u_int length = 0;
+	u_char *p = NULL;
+	CNetflowAudit *pNA = g_NetflowAudit;
+
+	length = pkthdr->caplen;
+	if(length < ETHER_HDRLEN)
+		return;
+	g_count++;
+	pNA->_tmpitem = new stTblItem;
+	fm = (struct framehdr*)pkt;
+	
+	ethtype = ntohs(fm->ftype);
+	if(  ethtype == ETHERTYPE_8021Q
+	   ||ethtype == ETHERTYPE_8021Q9100
+	   ||ethtype == ETHERTYPE_8021Q9200
+	   ||ethtype == ETHERTYPE_8021QinQ )
+	{
+		ptype = (uint16_t*)((u_char*)pkt + sizeof(struct framehdr)+ ETHERTYPE_LEN);
+		ethtype = ntohs(*ptype);
+		vlanlen = 4;
+	}
+
+	p = (u_char*)((u_char*)pkt + sizeof(struct framehdr) + vlanlen);
+	length = length - sizeof(struct framehdr) - vlanlen;
+
+	pNA->ether_layer_parse(ethtype, p, length);
+
+	pNA->_tmpitem->starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
+	memcpy(pNA->_tmpitem->smac,fm->srcmac,6);
+	memcpy(pNA->_tmpitem->dmac,fm->dstmac,6);
+	pNA->_tmpitem->reqflow += pkthdr->caplen;
+	#if 0
+	cout<<"time:"<<g_Date->timestamp_2_string(pkthdr->ts.tv_sec)<<endl;
+	cout<<"caplen:"<<pkthdr->caplen<<endl;
+	cout<<"len:"<<pkthdr->len<<endl;
+	cout<<"srcmac:";
+	_hex_dump(fm->srcmac,6);
+	cout<<"dstmac:";
+	_hex_dump(fm->dstmac,6);
+	cout<<"ftype:0x"<<hex<<ethtype<<dec<<endl;
+	cout<<"length:"<<length<<endl;
+	#endif
+
+	delete pNA->_tmpitem;
+
+}
+
+
+CNetflowAudit::CNetflowAudit()
+{
+	_strdev = "eth0";
+	init();
+}
+CNetflowAudit::CNetflowAudit(const char *dev)
+{
+	_strdev = dev;
+	init();
+}
+CNetflowAudit::~CNetflowAudit()
+{
+	close_pcap(_pd);
+	_pd = NULL;
+}
+int CNetflowAudit::init()
+{
+	_pd = open_pcap(_strdev.c_str());
+	if(!_pd)
+		throw("CNetflowAudit::init err");
+	return 0;
+}
+
+void CNetflowAudit::Run()
+{
+	int ret = 0;
+	int n = 0;
+	while(1)
+	{
+		ret = pcap_dispatch(_pd,-1,(pcap_handler)(&coll_pcap_handle),NULL);	
+		if(ret<0)
+		{
+			cout<<"pcap_dispatch() err!!!\n";
+			break;
+		}
+		else if(ret == 0)
+		{
+			usleep(10);//cout<<"pcap_dispatch() no catch packges......\n";
+		}
+		else
+		{
+			n+=ret;
+			//cout<<"\nret:"<<ret<<"n"<<n<<endl;
+			//if(n>100)
+			//break;
+		}
+	}
+
+}
+
+
+pcap_t* CNetflowAudit::open_pcap(const char *dev)
 {
 	int snaplen = 4096;
 	int PCAP_TIMEOUT = 1000;
@@ -53,32 +161,36 @@ pcap_t* open_pcap(const char *dev)
 	pd = pcap_open_live(dev,snaplen,1,PCAP_TIMEOUT,errbuf);
 	if(!pd)
 		cout<<"pcap_open_live() err:"<<errbuf<<endl;
-	
+	else
+	{
 	//set nonblock mode
 	pcap_setnonblock(pd,1,errbuf);
+	}
 
 	return pd;	
 }
 
-void close_pcap(pcap_t *pd)
+void CNetflowAudit::close_pcap(pcap_t *pd)
 {
 	if(pd)
+	{
 		pcap_close(pd);
+	}
 }
 
-void echo_g_tblitem()
+void CNetflowAudit::echo_tmpitem()
 {
-	cout<<" starttime:"<<g_tblitem->starttime
-	    <<" endtime:"<<g_tblitem->endtime
-	    <<" ftype:"<<g_tblitem->ftype
-	    <<" sip:"<<g_tblitem->sip
-	    <<" dip:"<<g_tblitem->dip 
-            <<" sport:"<<g_tblitem->sport
-	    <<" dport:"<<g_tblitem->dport
+	cout<<" starttime:"<<_tmpitem->starttime
+	    <<" endtime:"<<_tmpitem->endtime
+	    <<" ftype:"<<_tmpitem->ftype
+	    <<" sip:"<<_tmpitem->sip
+	    <<" dip:"<<_tmpitem->dip 
+            <<" sport:"<<_tmpitem->sport
+	    <<" dport:"<<_tmpitem->dport
 	    <<endl;
 }
 
-int ip_layer_parse(const u_char* p, u_int length)
+int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 {
 	struct iphdr *iph = NULL;
 	struct tcphdr *tcph = NULL;
@@ -92,8 +204,8 @@ int ip_layer_parse(const u_char* p, u_int length)
 	//now just support ipv4
 	if(iph->version == IPPROTO_IPV4) 
 	{
-		g_tblitem->sip = inaddr_2_ip(iph->saddr);	
-		g_tblitem->dip = inaddr_2_ip(iph->daddr);	
+		_tmpitem->sip = inaddr_2_ip(iph->saddr);	
+		_tmpitem->dip = inaddr_2_ip(iph->daddr);	
 	
 		switch(iph->protocol)
 		{
@@ -102,27 +214,28 @@ int ip_layer_parse(const u_char* p, u_int length)
 				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
 				sport = ntohs(tcph->source);
 				dport = ntohs(tcph->dest);
-				g_tblitem->sport = sport;
-				g_tblitem->dport = dport;
-				g_tblitem->ftype = "TCP";
+				_tmpitem->sport = sport;
+				_tmpitem->dport = dport;
+				_tmpitem->ftype = "TCP";
 				if(g_mPorts[0].find(sport) == g_mPorts[0].end())
 					g_mPorts[0][sport] = dport;
 					
-				if(tcph->rst== 1 && tcph->ack==1)
+				if(tcph->rst == 1 && tcph->ack==1)
 				{
-					cout<<"rst ..............\n";
-					g_tblitem->endtime = g_tblitem->starttime;
-					echo_g_tblitem();
+					_tmpitem->sessionstate = ENUM_RST;
+					//cout<<"rst ..............\n";
+					_tmpitem->endtime = _tmpitem->starttime;
 				}
-
 				else if(tcph->syn == 1 && tcph->ack==1)
-				cout<<"start tcp connect...............sip:"<<g_tblitem->sip<<" dip:"<<g_tblitem->dip \
+				{
+					cout<<"start tcp connect...............sip:"<<_tmpitem->sip<<" dip:"<<_tmpitem->dip \
 					<<"sport:"<<sport<<" dport:"<<dport<<endl;
+				}
 				else if(tcph->fin == 1 && tcph->ack==1)
 				{
+					_tmpitem->sessionstate = ENUM_SUCCESS;
 					cout<<"end tcp ..............\n";
-					g_tblitem->endtime = g_tblitem->starttime;
-					echo_g_tblitem();
+					_tmpitem->endtime = _tmpitem->starttime;
 				}
 
 				break;
@@ -284,7 +397,7 @@ int ip_layer_parse(const u_char* p, u_int length)
 	}
 }
 
-int ether_layer_parse(u_short ether_type, const u_char* p, u_int length)
+int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int length)
 {
 	switch (ether_type) 
 	{
@@ -398,58 +511,6 @@ int ether_layer_parse(u_short ether_type, const u_char* p, u_int length)
 			return (0);
 	}
 }
-
-void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_char* pkt)
-{
-	assert(pkthdr!=NULL);
-	struct framehdr *fm = NULL;
-	uint16_t *ptype = NULL;
-	uint16_t ethtype = 0;
-	int vlanlen = 0;
-	u_int length = 0;
-	u_char *p = NULL;
-
-	length = pkthdr->caplen;
-	if(length < ETHER_HDRLEN)
-		return;
-	fm = (struct framehdr*)pkt;
-	
-	ethtype = ntohs(fm->ftype);
-	if(  ethtype == ETHERTYPE_8021Q
-	   ||ethtype == ETHERTYPE_8021Q9100
-	   ||ethtype == ETHERTYPE_8021Q9200
-	   ||ethtype == ETHERTYPE_8021QinQ )
-	{
-		ptype = (uint16_t*)((u_char*)pkt + sizeof(struct framehdr)+ ETHERTYPE_LEN);
-		ethtype = ntohs(*ptype);
-		vlanlen = 4;
-	}
-
-	p = (u_char*)((u_char*)pkt + sizeof(struct framehdr) + vlanlen);
-	length = length - sizeof(struct framehdr) - vlanlen;
-
-	g_tblitem = new stTblItem;
-	g_tblitem->starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
-	memcpy(g_tblitem->smac,fm->srcmac,6);
-	memcpy(g_tblitem->dmac,fm->dstmac,6);
-	g_tblitem->reqflow += pkthdr->caplen;
-	#if 0
-	cout<<"time:"<<g_Date->timestamp_2_string(pkthdr->ts.tv_sec)<<endl;
-	cout<<"caplen:"<<pkthdr->caplen<<endl;
-	cout<<"len:"<<pkthdr->len<<endl;
-	cout<<"srcmac:";
-	_hex_dump(fm->srcmac,6);
-	cout<<"dstmac:";
-	_hex_dump(fm->dstmac,6);
-	cout<<"ftype:0x"<<hex<<ethtype<<dec<<endl;
-	cout<<"length:"<<length<<endl;
-	#endif
-
-	ether_layer_parse(ethtype, p, length);
-	delete g_tblitem;
-
-}
-
 void user_signal(int iSigNum)
 {
 	cout<<"recv signal:"<<iSigNum<<endl;
@@ -467,6 +528,18 @@ void user_signal(int iSigNum)
 	}
 }
 
+//every 3sec save once
+void* save2db_handle(void* arg)
+{
+	const int SLEEP_TIME = 3;
+	pthread_detach(pthread_self());
+
+	while(1)
+	{
+		
+		sleep(SLEEP_TIME);
+	}
+}
 //load file into mysql
 void* db_import_handle(void* arg)
 {
@@ -474,6 +547,7 @@ void* db_import_handle(void* arg)
 	const char *pfilter = "wdd";
 	const char *suffix = ".txt";
 	pthread_detach(pthread_self());
+
 	while(1)
 	{
 		if(ls_dir(SAVE_FILE,pfilter, suffix,vsqlfile) > 0)
@@ -509,40 +583,34 @@ void* db_import_handle(void* arg)
 }
 int main(int argc, char *argv[])
 {
+	const char *pdev = "ens3";
 	pcap_t *pd = NULL;
+	pid_t pid = getpid();
+	pthread_t pid_dbimport,pid_save2db;
 	int ret = 0;
-	cout<<g_Date->current_time()<<" hello NetFlow Audit\n";
-	pd = open_pcap("ens33");
-
 
 	::signal(SIGUSR1,user_signal);
-	pthread_t pid;
-	pthread_create(&pid,NULL,db_import_handle,NULL);
+	pthread_create(&pid_dbimport,NULL,db_import_handle,NULL);
+	pthread_create(&pid_save2db ,NULL,save2db_handle,NULL);
 
-	g_Date = new CDateTime;
-	int n = 0;
-	while(1)
+	try
 	{
-		ret = pcap_dispatch(pd,-1,(pcap_handler)(coll_pcap_handle),NULL);	
-		if(ret<0)
-		{
-			cout<<"pcap_dispatch() err!!!\n";
-			break;
-		}
-		else if(ret == 0)
-		{
-			usleep(10);//cout<<"pcap_dispatch() no catch packges......\n";
-		}
-		else
-		{
-			n+=ret;
-			//cout<<"\nret:"<<ret<<"n"<<n<<endl;
-			//if(n>100)
-			//break;
-		}
+		g_Date = new CDateTime;
+		cout<<g_Date->current_time()<<" hello NetFlow Audit\n";
+
+		g_NetflowAudit = new CNetflowAudit(pdev);
+		g_NetflowAudit->Run();
 	}
-	close_pcap(pd);
+	catch(const char *E)
+	{
+		cout<<g_Date->current_time()<<" catch err......"<<E<<endl;
+	}
+
+
+
+	
 	delete g_Date;
+	delete g_NetflowAudit;
 
 	user_signal(10);
 }
