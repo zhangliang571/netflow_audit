@@ -63,6 +63,7 @@ public:
 	~CNetflowAudit();
 	void Run();
 	void echo_msession();
+	int load_msession_2_ofstream(ofstream &of);
 private:
 	friend void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_char* pkt);
 	int init();

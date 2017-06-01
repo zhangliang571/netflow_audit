@@ -184,7 +184,7 @@ void CNetflowAudit::close_pcap(pcap_t *pd)
 	}
 }
 
-void CNetflowAudit::echo_msession()
+int CNetflowAudit::load_msession_2_ofstream(ofstream& of)
 {
 	map<string,stTblItem>::iterator itm;
 	for(itm=_mSessionEnd.begin();itm!=_mSessionEnd.end();itm++)
@@ -193,16 +193,56 @@ void CNetflowAudit::echo_msession()
 		<<"\tstarttime:"<<itm->second.starttime<<endl
 		<<"\tendtime:"<<itm->second.endtime<<endl
 		<<"\tftype:"<<itm->second.ftype<<endl
-		<<"\tsmac:"<<itm->second.smac<<endl
-		<<"\tdmac:"<<itm->second.dmac<<endl
 		<<"\tsip:"<<itm->second.sip<<endl
 		<<"\tsport:"<<itm->second.sport<<endl
 		<<"\tdip:"<<itm->second.dip<<endl
 		<<"\tdport:"<<itm->second.dport<<endl
 		<<"\treqflow:"<<itm->second.reqflow<<endl
 		<<"\trspflow:"<<itm->second.rspflow<<endl
-		<<"\tsessionstate:"<<g_session_state[itm->second.sessionstate-1]<<endl
-		<<endl;
+		<<"\tsessionstate:"<<g_session_state[itm->second.sessionstate-1]<<endl;
+	cout<<"\tsmac:\n";
+	_hex_dump(itm->second.smac,6);
+	cout<<"\tdmac:\n";
+	_hex_dump(itm->second.dmac,6);
+	}
+}
+void CNetflowAudit::echo_msession()
+{
+	map<string,stTblItem>::iterator itm;
+	uint64_t usmac = 0;
+	uint64_t udmac = 0;
+	uint64_t u= 0;
+	char buf[13] ={0};
+	u_char *psmac;
+	u_char *pdmac;
+	for(itm=_mSessionEnd.begin();itm!=_mSessionEnd.end();itm++)
+	{
+	cout<<"###### session audit ######\n"
+		<<"\tstarttime:"<<itm->second.starttime<<endl
+		<<"\tendtime:"<<itm->second.endtime<<endl
+		<<"\tftype:"<<itm->second.ftype<<endl
+		<<"\tsip:"<<itm->second.sip<<endl
+		<<"\tsport:"<<itm->second.sport<<endl
+		<<"\tdip:"<<itm->second.dip<<endl
+		<<"\tdport:"<<itm->second.dport<<endl
+		<<"\treqflow:"<<itm->second.reqflow<<endl
+		<<"\trspflow:"<<itm->second.rspflow<<endl
+		<<"\tsessionstate:"<<g_session_state[itm->second.sessionstate-1]<<endl;
+	psmac = itm->second.smac;
+	pdmac = itm->second.dmac;
+	usmac = 0;
+	udmac = 0;
+	for(int i=0;i<6;i++)
+	{
+	u = (uint64_t)psmac[i]<<(40-i*8);
+	usmac += u;
+	u = (uint64_t)pdmac[i]<<(40-i*8);
+	udmac += u;
+	}
+	cout<<"\tsmac:"<<usmac<<endl;
+	_hex_dump(itm->second.smac,6);
+	cout<<"\tdmac:"<<udmac<<endl;
+	_hex_dump(itm->second.dmac,6);
 	}
 }
 
@@ -241,7 +281,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				if(tcph->rst == 1 && tcph->ack==1)
 				{
 					_dir = ENUM_RSP;
-					cout<<"tcp connect rst..............sip:"<<_tmpitem->dip<<" sport"<<dport<<" dip:"<<_tmpitem->sip<<" dport:"<<sport<<endl;
+					cout<<"tcp connect rst..............sip:"<<_tmpitem->dip<<" sport"<<dport<<" dip:"<<_tmpitem->sip<<" dport:"<<sport<<" smac:"<<_tmpitem->smac<<endl;
 					key = _tmpitem->dip+":"+lexical_cast<string>(dport)+":"+_tmpitem->sip+":"+lexical_cast<string>(sport);
 					if((itm=_mSession.find(key)) != _mSession.end())
 					{
@@ -658,7 +698,7 @@ void user_signal(int iSigNum)
 //every 3sec save once
 void* save2db_handle(void* arg)
 {
-	const int SLEEP_TIME = 3;
+	const int SLEEP_TIME = 5;
 	pthread_detach(pthread_self());
 
 	while(1)
