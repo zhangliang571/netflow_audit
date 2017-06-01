@@ -19,3 +19,6 @@ CREATE TABLE `wdd_netflow_audit` (
 `auditext2` varchar(255) DEFAULT NULL,
 KEY `id` (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 
+
+
+rule_access

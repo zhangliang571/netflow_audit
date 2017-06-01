@@ -28,7 +28,6 @@ using namespace std;
 
 CDateTime *g_Date; 
 //key is sport, value is dport
-map<int,int> g_mPorts[2];
 CNetflowAudit *g_NetflowAudit; 
 
 uint32_t g_count = 0;
@@ -65,12 +64,15 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 	p = (u_char*)((u_char*)pkt + sizeof(struct framehdr) + vlanlen);
 	length = length - sizeof(struct framehdr) - vlanlen;
 
-	pNA->ether_layer_parse(ethtype, p, length);
 
-	pNA->_tmpitem->starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
+	//pNA->_tmpitem->starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
+	pNA->_tmpitem->starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec)+"."+lexical_cast<string>(pkthdr->ts.tv_usec);
 	memcpy(pNA->_tmpitem->smac,fm->srcmac,6);
 	memcpy(pNA->_tmpitem->dmac,fm->dstmac,6);
-	pNA->_tmpitem->reqflow += pkthdr->caplen;
+	pNA->_tmpitem->reqflow = pkthdr->caplen;
+
+	pNA->ether_layer_parse(ethtype, p, length);
+
 	#if 0
 	cout<<"time:"<<g_Date->timestamp_2_string(pkthdr->ts.tv_sec)<<endl;
 	cout<<"caplen:"<<pkthdr->caplen<<endl;
@@ -145,8 +147,10 @@ pcap_t* CNetflowAudit::open_pcap(const char *dev)
 	int PCAP_TIMEOUT = 1000;
 	char errbuf[256];
 	pcap_t *pd = NULL;
+	struct bpf_program pcapfilter;
 	uint32_t mask = 0xffff0000;
 	uint32_t net = 0;
+	const char *filter = "port 60687";
 
 	assert(dev!=NULL);
 
@@ -160,12 +164,14 @@ pcap_t* CNetflowAudit::open_pcap(const char *dev)
 
 	pd = pcap_open_live(dev,snaplen,1,PCAP_TIMEOUT,errbuf);
 	if(!pd)
-		cout<<"pcap_open_live() err:"<<errbuf<<endl;
-	else
 	{
+		cout<<"pcap_open_live() err:"<<errbuf<<endl;
+		return NULL;
+	}
+	pcap_compile(pd,&pcapfilter, filter, 1, mask);
+	pcap_setfilter(pd,&pcapfilter);
 	//set nonblock mode
 	pcap_setnonblock(pd,1,errbuf);
-	}
 
 	return pd;	
 }
@@ -178,16 +184,26 @@ void CNetflowAudit::close_pcap(pcap_t *pd)
 	}
 }
 
-void CNetflowAudit::echo_tmpitem()
+void CNetflowAudit::echo_msession()
 {
-	cout<<" starttime:"<<_tmpitem->starttime
-	    <<" endtime:"<<_tmpitem->endtime
-	    <<" ftype:"<<_tmpitem->ftype
-	    <<" sip:"<<_tmpitem->sip
-	    <<" dip:"<<_tmpitem->dip 
-            <<" sport:"<<_tmpitem->sport
-	    <<" dport:"<<_tmpitem->dport
-	    <<endl;
+	map<string,stTblItem>::iterator itm;
+	for(itm=_mSessionEnd.begin();itm!=_mSessionEnd.end();itm++)
+	{
+	cout<<"###### session audit ######\n"
+		<<"\tstarttime:"<<itm->second.starttime<<endl
+		<<"\tendtime:"<<itm->second.endtime<<endl
+		<<"\tftype:"<<itm->second.ftype<<endl
+		<<"\tsmac:"<<itm->second.smac<<endl
+		<<"\tdmac:"<<itm->second.dmac<<endl
+		<<"\tsip:"<<itm->second.sip<<endl
+		<<"\tsport:"<<itm->second.sport<<endl
+		<<"\tdip:"<<itm->second.dip<<endl
+		<<"\tdport:"<<itm->second.dport<<endl
+		<<"\treqflow:"<<itm->second.reqflow<<endl
+		<<"\trspflow:"<<itm->second.rspflow<<endl
+		<<"\tsessionstate:"<<g_session_state[itm->second.sessionstate-1]<<endl
+		<<endl;
+	}
 }
 
 int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
@@ -196,6 +212,9 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 	struct tcphdr *tcph = NULL;
 	struct udphdr *udph = NULL;
 	uint16_t sport,dport;
+	string key;
+	stTblItem item;
+	map<string,stTblItem>::iterator itm;
 
 	iph = (struct iphdr*)p;
 	if(ntohs(iph->tot_len) > length)
@@ -217,25 +236,145 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				_tmpitem->sport = sport;
 				_tmpitem->dport = dport;
 				_tmpitem->ftype = "TCP";
-				if(g_mPorts[0].find(sport) == g_mPorts[0].end())
-					g_mPorts[0][sport] = dport;
-					
+
+				//tcp connect rst
 				if(tcph->rst == 1 && tcph->ack==1)
 				{
-					_tmpitem->sessionstate = ENUM_RST;
-					//cout<<"rst ..............\n";
-					_tmpitem->endtime = _tmpitem->starttime;
+					_dir = ENUM_RSP;
+					cout<<"tcp connect rst..............sip:"<<_tmpitem->dip<<" sport"<<dport<<" dip:"<<_tmpitem->sip<<" dport:"<<sport<<endl;
+					key = _tmpitem->dip+":"+lexical_cast<string>(dport)+":"+_tmpitem->sip+":"+lexical_cast<string>(sport);
+					if((itm=_mSession.find(key)) != _mSession.end())
+					{
+						itm->second.endtime = _tmpitem->starttime;
+						itm->second.sessionstate = ENUM_RST;
+						itm->second.rspflow += _tmpitem->reqflow;
+						_mSessionEnd[key] = itm->second;
+						_mSession.erase(itm);
+					}
+				}	
+				//req 3 handles
+				else if(tcph->syn == 1 && tcph->ack==0)
+				{
+					_dir = ENUM_REQ;
+					cout<<"req 3 handles..............sip:"<<_tmpitem->sip<<" sport"<<sport<<" dip:"<<_tmpitem->dip<<" dport:"<<dport<<endl;
+					key = _tmpitem->sip+":"+lexical_cast<string>(sport)+":"+_tmpitem->dip+":"+lexical_cast<string>(dport);
+					if((itm=_mSession.find(key)) == _mSession.end())
+					{
+						item.starttime = _tmpitem->starttime;
+						item.ftype = "TCP";
+						memcpy(item.smac, _tmpitem->smac,sizeof(item.smac));
+						memcpy(item.dmac, _tmpitem->dmac,sizeof(item.dmac));
+						item.sip = _tmpitem->sip;
+						item.dip = _tmpitem->dip;
+						item.sport = _tmpitem->sport;
+						item.dport = _tmpitem->dport;
+						item.reqflow = _tmpitem->reqflow;
+						item.rspflow = 0;
+						item.sessionstate = ENUM_CONNECT_REQ;
+						_mSession[key] = item;
+					}
+					//new connect at half close
+					else
+					{
+						//if(itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF || itm->second.sessionstate==ENUM_SERVER_CLOSE_HALF)
+						{
+						_mSessionEnd[key] = itm->second;	
+						_mSession.erase(itm);
+
+						item.starttime = _tmpitem->starttime;
+						item.ftype = "TCP";
+						memcpy(item.smac, _tmpitem->smac,sizeof(item.smac));
+						memcpy(item.dmac, _tmpitem->dmac,sizeof(item.dmac));
+						item.sip = _tmpitem->sip;
+						item.dip = _tmpitem->dip;
+						item.sport = _tmpitem->sport;
+						item.dport = _tmpitem->dport;
+						item.reqflow = _tmpitem->reqflow;
+						item.rspflow = 0;
+						item.sessionstate = ENUM_CONNECT_REQ;
+						_mSession[key] = item;
+						}
+
+					}
 				}
+				//rsp 3 handles
 				else if(tcph->syn == 1 && tcph->ack==1)
 				{
-					cout<<"start tcp connect...............sip:"<<_tmpitem->sip<<" dip:"<<_tmpitem->dip \
-					<<"sport:"<<sport<<" dport:"<<dport<<endl;
+					_dir = ENUM_RSP;
+					cout<<"rsp 3 handles ..............sip:"<<_tmpitem->dip<<" sport:"<<dport<<" dip:"<<_tmpitem->sip<<" dport:"<<sport<<endl;
+					key = _tmpitem->dip+":"+lexical_cast<string>(dport)+":"+_tmpitem->sip+":"+lexical_cast<string>(sport);
+					if((itm=_mSession.find(key)) != _mSession.end())
+					{
+						item.rspflow = _tmpitem->reqflow;
+						itm->second.sessionstate  = ENUM_CONNECT_RSP;		
+					}
 				}
+				//tcp connect end
 				else if(tcph->fin == 1 && tcph->ack==1)
 				{
-					_tmpitem->sessionstate = ENUM_SUCCESS;
-					cout<<"end tcp ..............\n";
-					_tmpitem->endtime = _tmpitem->starttime;
+					cout<<"end   tcp connect...............sip:"<<_tmpitem->sip<<" dip:"<<_tmpitem->dip<<"sport:"<<sport<<" dport:"<<dport<<endl;
+					key = _tmpitem->sip+":"+lexical_cast<string>(sport)+":"+_tmpitem->dip+":"+lexical_cast<string>(dport);
+					if((itm=_mSession.find(key)) != _mSession.end())
+					{
+						_dir = ENUM_REQ;
+						if(itm->second.sessionstate == ENUM_SERVER_CLOSE_HALF)
+						{
+						itm->second.endtime = _tmpitem->starttime;
+						itm->second.reqflow += _tmpitem->reqflow;
+						itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
+						_mSessionEnd[key] = itm->second;
+						_mSession.erase(itm);
+						}
+						else
+						{
+						itm->second.endtime = _tmpitem->starttime;
+						itm->second.reqflow += _tmpitem->reqflow;
+						itm->second.sessionstate  = ENUM_CLIENT_CLOSE_HALF;		
+						}
+
+					}
+					else
+					{
+						key = _tmpitem->dip+":"+lexical_cast<string>(dport)+":"+_tmpitem->sip+":"+lexical_cast<string>(sport);
+						if((itm=_mSession.find(key)) != _mSession.end())
+						{
+							_dir = ENUM_RSP;
+							if(itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF)
+							{
+								itm->second.endtime = _tmpitem->starttime;
+								itm->second.rspflow += _tmpitem->reqflow;
+								itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
+								_mSessionEnd[key] = itm->second;
+								_mSession.erase(itm);
+							}
+							else
+							{
+								itm->second.endtime = _tmpitem->starttime;
+								itm->second.rspflow += _tmpitem->reqflow;
+								itm->second.sessionstate  = ENUM_SERVER_CLOSE_HALF;		
+							}
+						}
+
+					}
+				}
+				else
+				{
+					key = _tmpitem->sip+":"+lexical_cast<string>(sport)+":"+_tmpitem->dip+":"+lexical_cast<string>(dport);
+					if(_mSession.find(key) != _mSession.end())
+					{
+						_dir = ENUM_REQ;
+						cout<<"msession reqflow:"<<_mSession[key].reqflow<<endl;
+						_mSession[key].reqflow += _tmpitem->reqflow;
+					}
+					else
+					{
+						key = _tmpitem->dip+":"+lexical_cast<string>(dport)+":"+_tmpitem->sip+":"+lexical_cast<string>(sport);
+						if(_mSession.find(key) != _mSession.end())
+						{
+							_dir = ENUM_RSP;
+							_mSession[key].rspflow += _tmpitem->reqflow;
+						}
+					}
 				}
 
 				break;
@@ -243,8 +382,6 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
 				sport = ntohs(udph->source);
 				dport = ntohs(udph->dest);
-				if(g_mPorts[1].find(sport) == g_mPorts[1].end())
-					g_mPorts[1][sport] = dport;
 				break;
 
 #if 0
@@ -514,18 +651,8 @@ int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int 
 void user_signal(int iSigNum)
 {
 	cout<<"recv signal:"<<iSigNum<<endl;
-	map<int,int>::iterator itm;
-	for(int i=0;i<2;i++)
-	{
-	string s;
-	if(i==0)
-	s = "TCP stream:\n";
-	else
-	s = "UDP stream:\n";
-	cout<<s;
-	for(itm=g_mPorts[i].begin();itm!=g_mPorts[i].end();itm++)
-		cout<<"\tsport:"<<itm->first<<"\tdport:"<<itm->second<<endl;
-	}
+	g_NetflowAudit->echo_msession();
+	
 }
 
 //every 3sec save once
@@ -583,7 +710,7 @@ void* db_import_handle(void* arg)
 }
 int main(int argc, char *argv[])
 {
-	const char *pdev = "ens3";
+	const char *pdev = "ens33";
 	pcap_t *pd = NULL;
 	pid_t pid = getpid();
 	pthread_t pid_dbimport,pid_save2db;
