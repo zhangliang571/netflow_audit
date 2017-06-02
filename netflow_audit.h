@@ -83,7 +83,7 @@ private:
 	string _strdev;
 	pcap_t *_pd;
 	sem_t _sem;
-	uint64_t _totalN;
+	uint64_t _totalSession;
 	
 	//one pcap stTblItem data
 	stTblItem _tmpitem;
