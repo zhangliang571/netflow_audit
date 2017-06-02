@@ -67,7 +67,7 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 
 	pNA->zero_stTblItem();
 
-	pNA->_tmpitem.auditid = _totalN;
+	pNA->_tmpitem.auditid = pNA->_totalN;
 	pNA->_tmpitem.starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
 	//pNA->_tmpitem.starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec)+"."+lexical_cast<string>(pkthdr->ts.tv_usec);
 	for(int i=0;i<6;i++)
@@ -343,7 +343,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				if(tcph->rst == 1 && tcph->ack==1)
 				{
 					_dir = ENUM_RSP;
-					cout<<"tcp connect rst..............sip:"<<_tmpitem.dip<<" sport"<<dport<<" dip:"<<_tmpitem.sip<<" dport:"<<sport<<" smac:"<<_tmpitem.smac<<endl;
+					//cout<<"tcp connect rst..............sip:"<<_tmpitem.dip<<" sport"<<dport<<" dip:"<<_tmpitem.sip<<" dport:"<<sport<<" smac:"<<_tmpitem.smac<<endl;
 					key = _tmpitem.dip+":"+lexical_cast<string>(dport)+":"+_tmpitem.sip+":"+lexical_cast<string>(sport);
 					if((itm=_mSession.find(key)) != _mSession.end())
 					{
@@ -358,7 +358,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				else if(tcph->syn == 1 && tcph->ack==0)
 				{
 					_dir = ENUM_REQ;
-					cout<<"req 3 handles..............sip:"<<_tmpitem.sip<<" sport"<<sport<<" dip:"<<_tmpitem.dip<<" dport:"<<dport<<endl;
+					//cout<<"req 3 handles..............sip:"<<_tmpitem.sip<<" sport"<<sport<<" dip:"<<_tmpitem.dip<<" dport:"<<dport<<endl;
 					key = _tmpitem.sip+":"+lexical_cast<string>(sport)+":"+_tmpitem.dip+":"+lexical_cast<string>(dport);
 					if((itm=_mSession.find(key)) == _mSession.end())
 					{
@@ -407,7 +407,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				else if(tcph->syn == 1 && tcph->ack==1)
 				{
 					_dir = ENUM_RSP;
-					cout<<"rsp 3 handles ..............sip:"<<_tmpitem.dip<<" sport:"<<dport<<" dip:"<<_tmpitem.sip<<" dport:"<<sport<<endl;
+					//cout<<"rsp 3 handles ..............sip:"<<_tmpitem.dip<<" sport:"<<dport<<" dip:"<<_tmpitem.sip<<" dport:"<<sport<<endl;
 					key = _tmpitem.dip+":"+lexical_cast<string>(dport)+":"+_tmpitem.sip+":"+lexical_cast<string>(sport);
 					if((itm=_mSession.find(key)) != _mSession.end())
 					{
@@ -418,7 +418,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				//tcp connect end
 				else if(tcph->fin == 1 && tcph->ack==1)
 				{
-					cout<<"end   tcp connect...............sip:"<<_tmpitem.sip<<" dip:"<<_tmpitem.dip<<"sport:"<<sport<<" dport:"<<dport<<endl;
+					//cout<<"end   tcp connect...............sip:"<<_tmpitem.sip<<" dip:"<<_tmpitem.dip<<"sport:"<<sport<<" dport:"<<dport<<endl;
 					key = _tmpitem.sip+":"+lexical_cast<string>(sport)+":"+_tmpitem.dip+":"+lexical_cast<string>(dport);
 					if((itm=_mSession.find(key)) != _mSession.end())
 					{
@@ -469,7 +469,6 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 					if(_mSession.find(key) != _mSession.end())
 					{
 						_dir = ENUM_REQ;
-						cout<<"msession reqflow:"<<_mSession[key].reqflow<<endl;
 						_mSession[key].reqflow += _tmpitem.reqflow;
 					}
 					else
@@ -776,12 +775,14 @@ void* save2db_handle(void* arg)
 		ret = pNA->load_msession_2_file(strtmpfile);
 		if(ret>0)	
 		{
-		//backup
-		string cmd = string("cp -f ") + strtmpfile + " /tmp/zl";
-		system(cmd.c_str());
+#if 0
+			//backup
+			string cmd = string("cp -f ") + strtmpfile + " /tmp/zl";
+			system(cmd.c_str());
+#endif
 
-		//move tmpfile to /data/input/
-		rename(strtmpfile.c_str(),strfile.c_str());
+			//move tmpfile to /data/input/
+			rename(strtmpfile.c_str(),strfile.c_str());
 		}
 
 		sleep(SLEEP_TIME);
@@ -811,10 +812,10 @@ void* db_import_handle(void* arg)
 				{
 				bicmd += strfiles;
 				system(bicmd.c_str());
-				cout<<"$$$$$$$$$$ "<<bicmd<<endl;
+				//cout<<"$$$$$$$$$$ "<<bicmd<<endl;
 				rmcmd += strfiles;
 				system(rmcmd.c_str());
-				cout<<"$$$$$$$$$$ "<<rmcmd<<endl;
+				//cout<<"$$$$$$$$$$ "<<rmcmd<<endl;
 				strfiles = "";
 				}
 			}
