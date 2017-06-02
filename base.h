@@ -12,6 +12,7 @@ using namespace std;
 #define SAVE_FILE "/data/input/"
 #define SAVE_TEMP_FILE "/data/input/temp/"
 #define DATE_FORMAT "%y%m%d%H%M%S"
+#define WDD_NETFLOW_AUDIT "wdd_netflow_audit"
 
 void _hex_dump(const u_char *p,int len);
 string inaddr_2_ip(uint32_t addr);

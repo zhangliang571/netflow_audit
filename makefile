@@ -6,6 +6,7 @@
 
 CC:=g++
 INCLUDE:=./
+FLAGS:= -g
 LIBS:= -lpthread -lpcap -lboost_date_time
 BIN:=netflow_audit
 SRCS:=$(wildcard *.c++)
@@ -15,10 +16,10 @@ OBJS:=$(patsubst %.c++, %.o, $(SRCS))
 all: $(BIN)
 
 $(BIN):$(OBJS)
-	$(CC) -Wall -g $(OBJS) $(LIBS) -o $(BIN) 
+	$(CC) -Wall $(FLAGS) $(OBJS) $(LIBS) -o $(BIN) 
 
 %.o:%.c++
-	$(CC) -I $(INCLUDE) -o $@ -c $<
+	$(CC) -I $(INCLUDE) $(FLAGS) -o $@ -c $<
 	
 clean:
 	rm -f $(BIN)  *.o 

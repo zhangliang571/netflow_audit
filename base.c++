@@ -92,7 +92,7 @@ int ls_dir(string strPath,const char *pfilter,const char *suffix,vector<string> 
 				continue;
 		}
 		if(filename[0] != '.')
-			v.push_back(filename);
+			v.push_back(strPath+filename);
 	}
 	return v.size();
 }

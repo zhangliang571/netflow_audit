@@ -22,6 +22,7 @@ public:
 	virtual ~CDateTime();
 
 	string current_time();
+	string current_iso_time();
 	time_t date_time_2_timestamp(string strt);
 	string timestamp_2_string(time_t t);
 	void echo_time();

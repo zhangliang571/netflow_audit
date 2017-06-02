@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include <semaphore.h>
 
 using namespace std;
 
@@ -44,8 +45,8 @@ typedef struct _stTblItem
 	string starttime;
 	string endtime;
 	string ftype;
-	u_char dmac[6];
-	u_char smac[6];
+	uint64_t dmac;
+	uint64_t smac;
 	string sip;
 	string dip;
 	u_short sport;
@@ -53,6 +54,8 @@ typedef struct _stTblItem
 	u_long reqflow;
 	u_long rspflow;
 	int sessionstate;
+	string auditext1;
+	string auditext2;
 }stTblItem;
 
 class CNetflowAudit
@@ -63,20 +66,27 @@ public:
 	~CNetflowAudit();
 	void Run();
 	void echo_msession();
-	int load_msession_2_ofstream(ofstream &of);
+	int load_msession_2_file(string strfile);
 private:
 	friend void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_char* pkt);
 	int init();
+	void zero_stTblItem(stTblItem &item);
+	void zero_stTblItem();
 	pcap_t* open_pcap(const char *dev);
 	void close_pcap(pcap_t *pd);
+	int swap_msessionEnd(map<string,stTblItem> &dstm);
+	int insert_2_msessionEnd(string &key, stTblItem &item);
+	int load_msession_2_ofstream(ofstream& of,map<string,stTblItem> &m);
 	int ether_layer_parse(u_short ether_type, const u_char* p, u_int length);
 	int ip_layer_parse(const u_char* p, u_int length);
 private:
 	string _strdev;
 	pcap_t *_pd;
+	sem_t _sem;
+	uint64_t _totalN;
 	
 	//one pcap stTblItem data
-	stTblItem* _tmpitem;
+	stTblItem _tmpitem;
 	enum STREAM_DIR
 	{
 		ENUM_REQ = 1,

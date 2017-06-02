@@ -18,6 +18,15 @@ string CDateTime::current_time()
 	return stime;
 }
 
+//return : "20170525171100"
+string CDateTime::current_iso_time()
+{
+	ptime pnow(second_clock::local_time());
+	string stime = to_iso_string(pnow);
+	stime = stime.substr(0,8) + stime.substr(9);
+	return stime.substr(0,14);
+}
+
 time_t CDateTime::date_time_2_timestamp(string strt)
 {
 	ptime pt(time_from_string(strt));
