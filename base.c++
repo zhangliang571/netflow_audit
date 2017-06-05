@@ -96,3 +96,15 @@ int ls_dir(string strPath,const char *pfilter,const char *suffix,vector<string> 
 	}
 	return v.size();
 }
+
+uint64_t mac_2_int(u_char *mac,int len)
+{
+	uint64_t ul = 0;
+	uint64_t ret = 0;
+	for(int i=0;i<len;i++)
+	{
+		ul = (uint64_t)mac[i]<<(40-i*8);
+		ret += ul;
+	}
+	return ret;
+}

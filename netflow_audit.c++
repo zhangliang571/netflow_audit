@@ -8,6 +8,7 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <linux/icmp.h>
 #include <netinet/in.h>
 #include <pcap/pcap.h>
 #include <assert.h>
@@ -28,10 +29,10 @@
 using namespace std;
 
 CDateTime *g_Date; 
-//key is sport, value is dport
 CNetflowAudit *g_NetflowAudit; 
 
 
+int g_coll_count;
 void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_char* pkt)
 {
 	assert(pkthdr!=NULL);
@@ -47,6 +48,8 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 	length = pkthdr->caplen;
 	if(length < ETHER_HDRLEN)
 		return;
+	
+	g_coll_count++;
 
 	fm = (struct framehdr*)pkt;
 	
@@ -66,16 +69,9 @@ void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_cha
 
 	pNA->zero_stTblItem();
 
-	pNA->_tmpitem.auditid = pNA->_totalSession;
 	pNA->_tmpitem.starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec);
-	//pNA->_tmpitem.starttime = g_Date->timestamp_2_string(pkthdr->ts.tv_sec)+"."+lexical_cast<string>(pkthdr->ts.tv_usec);
-	for(int i=0;i<6;i++)
-	{
-		ul = (uint64_t)fm->srcmac[i]<<(40-i*8);
-		pNA->_tmpitem.smac += ul;
-		ul = (uint64_t)fm->dstmac[i]<<(40-i*8);
-		pNA->_tmpitem.dmac += ul;
-	}
+	pNA->_tmpitem.smac = mac_2_int(fm->srcmac,sizeof(fm->srcmac));
+	pNA->_tmpitem.dmac = mac_2_int(fm->dstmac,sizeof(fm->dstmac));
 	pNA->_tmpitem.reqflow = pkthdr->caplen;
 
 	pNA->ether_layer_parse(ethtype, p, length);
@@ -100,6 +96,7 @@ CNetflowAudit::CNetflowAudit()
 {
 	_strdev = "eth0";
 	_totalSession = 0;
+	_totalICMP= 0;
 	init();
 }
 CNetflowAudit::CNetflowAudit(const char *dev)
@@ -113,6 +110,8 @@ CNetflowAudit::~CNetflowAudit()
 	_pd = NULL;
 	_mSession.clear();
 	_mSessionEnd.clear();
+	_mSessionTimeOut.clear();
+	_mICMP.clear();
 	sem_destroy(&_sem);
 }
 int CNetflowAudit::init()
@@ -184,7 +183,6 @@ pcap_t* CNetflowAudit::open_pcap(const char *dev)
 	struct bpf_program pcapfilter;
 	uint32_t mask = 0xffff0000;
 	uint32_t net = 0;
-	//const char *filter = "port 60687";
 	const char *filter = NULL;
 
 	assert(dev!=NULL);
@@ -220,7 +218,7 @@ void CNetflowAudit::close_pcap(pcap_t *pd)
 }
 
 //copy _mSessionEnd to dstm and _mSessionEnd.clear()
-int CNetflowAudit::swap_msessionEnd(map<string,stTblItem> &dstm)
+int CNetflowAudit::swap_mSessionEnd(map<string,stTblItem> &dstm)
 {
 	int ret = 0;
 	sem_wait(&_sem);
@@ -230,32 +228,134 @@ int CNetflowAudit::swap_msessionEnd(map<string,stTblItem> &dstm)
 	sem_post(&_sem);
 	return 	ret;
 }
-int CNetflowAudit::insert_2_msessionEnd(string &key, stTblItem &item)
+
+//copy _mSessionTimeOut to dstm and _mSessionTimeOut.clear()
+int CNetflowAudit::swap_mSessionTimeOut(map<string,stTblItem> &dstm)
 {
 	int ret = 0;
 	sem_wait(&_sem);
-	_mSessionEnd[key] = item;
-	ret = _mSessionEnd.size();
+	dstm = _mSessionTimeOut;
+	_mSessionTimeOut.clear();
+	ret = dstm.size();
 	sem_post(&_sem);
 	return 	ret;
 }
-int CNetflowAudit::load_msession_2_file(string strtmpfile)
+int CNetflowAudit::swap_mUDP(map<string,stTblItem> &dstm)
+{
+	int ret = 0;
+	sem_wait(&_sem);
+	dstm = _mUDP;
+	_mUDP.clear();
+	ret = dstm.size();
+	sem_post(&_sem);
+	return 	ret;
+}
+int CNetflowAudit::swap_mICMP(map<string,stTblItem> &dstm)
+{
+	int ret = 0;
+	sem_wait(&_sem);
+	dstm = _mICMP;
+	_mICMP.clear();
+	ret = dstm.size();
+	sem_post(&_sem);
+	return 	ret;
+}
+int CNetflowAudit::insert_2_mSessionEnd(string &key, stTblItem &item)
+{
+	int ret = 0;
+	//sem_wait(&_sem);
+	_mSessionEnd[key] = item;
+	ret = _mSessionEnd.size();
+	//sem_post(&_sem);
+	return 	ret;
+}
+
+int CNetflowAudit::insert_2_mSessionTimeOut(string &key, stTblItem &item)
+{
+	int ret = 0;
+	//sem_wait(&_sem);
+	_mSessionTimeOut[key] = item;
+	ret = _mSessionTimeOut.size();
+	//sem_post(&_sem);
+	return 	ret;
+}
+int CNetflowAudit::erase_mSessionTimeOut(string key)
+{
+	int ret = 0;
+	//sem_wait(&_sem);
+	_mSessionTimeOut.erase(key);
+	//sem_post(&_sem);
+	return 	ret;
+}
+
+
+int CNetflowAudit::load_mSessionEnd_2_file(string strtmpfile)
 {
 	int ret = 0;
 	ofstream of;
 	map<string,stTblItem> mdata;
 	
-	ret = swap_msessionEnd(mdata);
+	ret = swap_mSessionEnd(mdata);
 	if(ret>0)
 	{
 		of.open(strtmpfile.c_str(), ios::app);	
-		load_msession_2_ofstream(of, mdata);
+		load_tblitem_2_ofstream(of, mdata);
 		of.close();
 
 	}
 	return ret;
 }
-int CNetflowAudit::load_msession_2_ofstream(ofstream& of,map<string,stTblItem> &m)
+
+int CNetflowAudit::load_mSessionTimeOut_2_file(string strtmpfile)
+{
+	int ret = 0;
+	ofstream of;
+	map<string,stTblItem> mdata;
+	
+	ret = swap_mSessionTimeOut(mdata);
+	if(ret>0)
+	{
+		of.open(strtmpfile.c_str(), ios::app);	
+		load_tblitem_2_ofstream(of, mdata);
+		of.close();
+
+	}
+	return ret;
+}
+
+int CNetflowAudit::load_mUDP_2_file(string strtmpfile)
+{
+	int ret = 0;
+	ofstream of;
+	map<string,stTblItem> mdata;
+	
+	ret = swap_mUDP(mdata);
+	if(ret>0)
+	{
+		of.open(strtmpfile.c_str(), ios::app);	
+		load_tblitem_2_ofstream(of, mdata);
+		of.close();
+
+	}
+	return ret;
+}
+int CNetflowAudit::load_mICMP_2_file(string strtmpfile)
+{
+	int ret = 0;
+	ofstream of;
+	map<string,stTblItem> mdata;
+	
+	ret = swap_mICMP(mdata);
+	if(ret>0)
+	{
+		of.open(strtmpfile.c_str(), ios::app);	
+		load_tblitem_2_ofstream(of, mdata);
+		of.close();
+
+	}
+	return ret;
+}
+int CNetflowAudit::load_tblitem_2_ofstream(ofstream& of,map<string,stTblItem> &m)
 {
 	int ret = 0;
 	map<string,stTblItem>::iterator itm;
@@ -314,7 +414,10 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 	struct iphdr *iph = NULL;
 	struct tcphdr *tcph = NULL;
 	struct udphdr *udph = NULL;
+	struct icmphdr *icmph= NULL;
+	uint32_t isip,idip;
 	uint16_t sport,dport;
+	uint8_t icmp_type;
 	string key;
 	stTblItem item;
 	map<string,stTblItem>::iterator itm;
@@ -326,8 +429,8 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 	//now just support ipv4
 	if(iph->version == IPPROTO_IPV4) 
 	{
-		_tmpitem.sip = inaddr_2_ip(iph->saddr);	
-		_tmpitem.dip = inaddr_2_ip(iph->daddr);	
+		isip = iph->saddr;
+		idip = iph->daddr;
 	
 		switch(iph->protocol)
 		{
@@ -343,25 +446,31 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				//tcp connect rst
 				if(tcph->rst == 1 && tcph->ack==1)
 				{
+				sem_wait(&_sem);
 					_dir = ENUM_RSP;
 					//cout<<"tcp connect rst..............sip:"<<_tmpitem.dip<<" sport"<<dport<<" dip:"<<_tmpitem.sip<<" dport:"<<sport<<" smac:"<<_tmpitem.smac<<endl;
-					key = _tmpitem.dip+":"+lexical_cast<string>(dport)+":"+_tmpitem.sip+":"+lexical_cast<string>(sport);
+					key = lexical_cast<string>(idip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(isip)+":"+lexical_cast<string>(sport);
 					if((itm=_mSession.find(key)) != _mSession.end())
 					{
 						itm->second.endtime = _tmpitem.starttime;
 						itm->second.sessionstate = ENUM_RST;
 						itm->second.rspflow += _tmpitem.reqflow;
-						insert_2_msessionEnd(key,itm->second);
+						insert_2_mSessionEnd(key,itm->second);
 						_mSession.erase(itm);
 					}
+				sem_post(&_sem);
 				}	
 				//req 3 handles
 				else if(tcph->syn == 1 && tcph->ack==0 && tcph->ece==0&&tcph->cwr==0)
 				{
+				sem_wait(&_sem);
 					_dir = ENUM_REQ;
 					//cout<<"req 3 handles..............sip:"<<_tmpitem.sip<<" sport"<<sport<<" dip:"<<_tmpitem.dip<<" dport:"<<dport<<endl;
-					key = _tmpitem.sip+":"+lexical_cast<string>(sport)+":"+_tmpitem.dip+":"+lexical_cast<string>(dport);
-					if((itm=_mSession.find(key)) == _mSession.end())
+					_tmpitem.sip = inaddr_2_ip(iph->saddr);	
+					_tmpitem.dip = inaddr_2_ip(iph->daddr);	
+
+					key = lexical_cast<string>(isip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(idip)+":"+lexical_cast<string>(dport);
+					if((itm=_mSessionTimeOut.find(key)) == _mSessionTimeOut.end())
 					{
 						zero_stTblItem(item);
 						_totalSession++;
@@ -377,15 +486,16 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 						item.reqflow = _tmpitem.reqflow;
 						item.rspflow = 0;
 						item.sessionstate = ENUM_CONNECT_REQ;
-						_mSession[key] = item;
+
+						insert_2_mSessionTimeOut(key, item);
 					}
 					//new connect at half close
 					else
 					{
 						//if(itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF || itm->second.sessionstate==ENUM_SERVER_CLOSE_HALF)
 						{
-						insert_2_msessionEnd(key,itm->second);
-						_mSession.erase(itm);
+						insert_2_mSessionEnd(key,itm->second);
+						erase_mSessionTimeOut(key);
 
 						zero_stTblItem(item);
 						_totalSession++;
@@ -401,28 +511,35 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 						item.reqflow = _tmpitem.reqflow;
 						item.rspflow = 0;
 						item.sessionstate = ENUM_CONNECT_REQ;
-						_mSession[key] = item;
+
+						insert_2_mSessionTimeOut(key, item);
 						}
 
 					}
+				sem_post(&_sem);
 				}
 				//rsp 3 handles
 				else if(tcph->syn == 1 && tcph->ack==1)
 				{
+				sem_wait(&_sem);
 					_dir = ENUM_RSP;
 					cout<<"rsp 3 handles ..............sip:"<<_tmpitem.dip<<" sport:"<<dport<<" dip:"<<_tmpitem.sip<<" dport:"<<sport<<endl;
-					key = _tmpitem.dip+":"+lexical_cast<string>(dport)+":"+_tmpitem.sip+":"+lexical_cast<string>(sport);
-					if((itm=_mSession.find(key)) != _mSession.end())
+					key = lexical_cast<string>(idip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(isip)+":"+lexical_cast<string>(sport);
+					if((itm=_mSessionTimeOut.find(key)) != _mSessionTimeOut.end())
 					{
 						itm->second.rspflow = _tmpitem.reqflow;
 						itm->second.sessionstate  = ENUM_CONNECT_RSP;		
+						_mSession[key] = itm->second;
+						erase_mSessionTimeOut(key);
 					}
+				sem_post(&_sem);
 				}
 				//tcp connect end
 				else if(tcph->fin == 1 && tcph->ack==1)
 				{
+				sem_wait(&_sem);
 					//cout<<"end   tcp connect...............sip:"<<_tmpitem.sip<<" dip:"<<_tmpitem.dip<<"sport:"<<sport<<" dport:"<<dport<<endl;
-					key = _tmpitem.sip+":"+lexical_cast<string>(sport)+":"+_tmpitem.dip+":"+lexical_cast<string>(dport);
+					key = lexical_cast<string>(isip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(idip)+":"+lexical_cast<string>(dport);
 					if((itm=_mSession.find(key)) != _mSession.end())
 					{
 						_dir = ENUM_REQ;
@@ -431,20 +548,23 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 						itm->second.endtime = _tmpitem.starttime;
 						itm->second.reqflow += _tmpitem.reqflow;
 						itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
-						insert_2_msessionEnd(key,itm->second);
+						insert_2_mSessionEnd(key,itm->second);
 						_mSession.erase(itm);
+						erase_mSessionTimeOut(key);
 						}
 						else
 						{
 						itm->second.endtime = _tmpitem.starttime;
 						itm->second.reqflow += _tmpitem.reqflow;
 						itm->second.sessionstate  = ENUM_CLIENT_CLOSE_HALF;		
+						insert_2_mSessionTimeOut(key, itm->second);
+						_mSession.erase(itm);
 						}
 
 					}
 					else
 					{
-						key = _tmpitem.dip+":"+lexical_cast<string>(dport)+":"+_tmpitem.sip+":"+lexical_cast<string>(sport);
+						key = lexical_cast<string>(idip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(isip)+":"+lexical_cast<string>(sport);
 						if((itm=_mSession.find(key)) != _mSession.end())
 						{
 							_dir = ENUM_RSP;
@@ -453,22 +573,26 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 								itm->second.endtime = _tmpitem.starttime;
 								itm->second.rspflow += _tmpitem.reqflow;
 								itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
-								insert_2_msessionEnd(key,itm->second);
+								insert_2_mSessionEnd(key,itm->second);
 								_mSession.erase(itm);
+								erase_mSessionTimeOut(key);
 							}
 							else
 							{
 								itm->second.endtime = _tmpitem.starttime;
 								itm->second.rspflow += _tmpitem.reqflow;
 								itm->second.sessionstate  = ENUM_SERVER_CLOSE_HALF;		
+								insert_2_mSessionTimeOut(key, itm->second);
+								_mSession.erase(itm);
 							}
 						}
 
 					}
+				sem_post(&_sem);
 				}
 				else
 				{
-					key = _tmpitem.sip+":"+lexical_cast<string>(sport)+":"+_tmpitem.dip+":"+lexical_cast<string>(dport);
+					key = lexical_cast<string>(isip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(idip)+":"+lexical_cast<string>(dport);
 					if(_mSession.find(key) != _mSession.end())
 					{
 						_dir = ENUM_REQ;
@@ -476,7 +600,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 					}
 					else
 					{
-						key = _tmpitem.dip+":"+lexical_cast<string>(dport)+":"+_tmpitem.sip+":"+lexical_cast<string>(sport);
+						key = lexical_cast<string>(idip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(isip)+":"+lexical_cast<string>(sport);
 						if(_mSession.find(key) != _mSession.end())
 						{
 							_dir = ENUM_RSP;
@@ -488,9 +612,183 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				break;
 			case IPPROTO_UDP:
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
+				sem_wait(&_sem);
 				sport = ntohs(udph->source);
 				dport = ntohs(udph->dest);
+				_tmpitem.ftype = "UDP";
+
+				key = lexical_cast<string>(isip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(idip)+":"+lexical_cast<string>(dport);
+				cout<<"udp...... "<<key<<endl;
+				if(_mUDP.find(key) == _mUDP.end())
+				{
+					string keyrsp = lexical_cast<string>(idip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(isip)+":"+lexical_cast<string>(sport);
+					if(_mUDP.find(keyrsp) == _mUDP.end())
+					{
+						_dir = ENUM_REQ;	
+						_tmpitem.sport = sport;
+						_tmpitem.dport = dport;
+						_tmpitem.sip = inaddr_2_ip(iph->saddr);	
+						_tmpitem.dip = inaddr_2_ip(iph->daddr);	
+
+						zero_stTblItem(item);
+						_totalUDP++;
+						item.auditid = _totalUDP;
+						item.starttime = _tmpitem.starttime;
+						item.ftype = _tmpitem.ftype;
+						item.dmac = _tmpitem.dmac;
+						item.smac = _tmpitem.smac;
+						item.sip = _tmpitem.sip;
+						item.dip = _tmpitem.dip;
+						item.sport = _tmpitem.sport;
+						item.dport = _tmpitem.dport;
+						item.reqflow = _tmpitem.reqflow;
+						item.rspflow = 0;
+						item.sessionstate = ENUM_UDP;
+						_mUDP[key] = item;	
+
+					}
+					else
+					{
+						_dir = ENUM_RSP;	
+						_mUDP[keyrsp].rspflow += _tmpitem.reqflow;
+					}
+
+				}
+				else
+				{
+					_dir = ENUM_REQ;	
+					_mUDP[key].rspflow += _tmpitem.reqflow;
+				}
+				sem_post(&_sem);
+
 				break;
+			case IPPROTO_ICMP:
+				icmph = (struct icmphdr*)((u_char*)iph + iph->ihl*4);
+				sem_wait(&_sem);
+
+				switch(icmph->type)
+				{
+					case ICMP_ECHO:
+					case ICMP_DEST_UNREACH:
+					case ICMP_REDIRECT:
+					case ICMP_TIMESTAMP:
+					case ICMP_ADDRESS:
+						if(icmph->type == ICMP_ECHO)
+							icmp_type = ENUM_ICMP_ECHO;
+						else if(icmph->type == ICMP_DEST_UNREACH)
+							icmp_type = ENUM_ICMP_DEST_UNREACH;
+						else if(icmph->type == ICMP_REDIRECT)
+							icmp_type = ENUM_ICMP_REDIRECT;
+						else if(icmph->type == ICMP_TIMESTAMP)
+							icmp_type = ENUM_ICMP_TIMESTAMP;
+						else if(icmph->type == ICMP_ADDRESS)
+							icmp_type = ENUM_ICMP_ADDRESS;
+							//key is dmac:smac:sip:dip:type
+						key = lexical_cast<string>(_tmpitem.dmac)+":"+lexical_cast<string>(_tmpitem.smac)+":"+lexical_cast<string>(isip)+":"+lexical_cast<string>(idip)+":"+lexical_cast<string>(icmp_type);
+						cout<<"req icmp............key:"<<key<<endl;
+						if(_mICMP.find(key) == _mICMP.end())
+						{
+							_tmpitem.sip = inaddr_2_ip(iph->saddr);	
+							_tmpitem.dip = inaddr_2_ip(iph->daddr);	
+							_tmpitem.ftype = "ICMP";
+							zero_stTblItem(item);
+							_totalICMP++;
+							item.auditid = _totalICMP;
+							item.starttime = _tmpitem.starttime;
+							item.ftype = _tmpitem.ftype;
+							item.dmac = _tmpitem.dmac;
+							item.smac = _tmpitem.smac;
+							item.sip = _tmpitem.sip;
+							item.dip = _tmpitem.dip;
+							item.sport = 1;
+							item.dport = 0;
+							if(icmph->type == ICMP_ECHO)
+							{
+								item.reqflow = _tmpitem.reqflow;
+								item.rspflow = 0;
+							}
+							else if(icmph->type == ICMP_DEST_UNREACH)
+							{
+								item.reqflow = 0;
+								item.rspflow = _tmpitem.reqflow;
+							}
+							else if(icmph->type == ICMP_REDIRECT)
+							{
+								item.reqflow = 0;
+								item.rspflow = _tmpitem.reqflow;
+							}
+							else if(icmph->type == ICMP_TIMESTAMP)
+							{
+								item.reqflow = _tmpitem.reqflow;
+								item.rspflow = 0;
+							}
+							else if(icmph->type == ICMP_ADDRESS)
+							{
+								item.reqflow = _tmpitem.reqflow;
+								item.rspflow = 0;
+							}
+							item.sessionstate = icmp_type;
+							_mICMP[key] = item;	
+						}
+						else
+						{
+							_mICMP[key].sport += 1;	
+							if(icmph->type == ICMP_ECHO)
+							{
+								_mICMP[key].reqflow += _tmpitem.reqflow;	
+							}
+							else if(icmph->type == ICMP_DEST_UNREACH)
+							{
+								_mICMP[key].rspflow += _tmpitem.reqflow;	
+							}
+							else if(icmph->type == ICMP_REDIRECT)
+							{
+								_mICMP[key].rspflow += _tmpitem.reqflow;	
+							}
+							else if(icmph->type == ICMP_TIMESTAMP)
+							{
+								_mICMP[key].reqflow += _tmpitem.reqflow;	
+							}
+							else if(icmph->type == ICMP_ADDRESS)
+							{
+								_mICMP[key].reqflow += _tmpitem.reqflow;	
+							}
+
+						}
+
+						break;
+					case ICMP_ECHOREPLY:
+					case ICMP_TIMESTAMPREPLY:
+					case ICMP_ADDRESSREPLY:
+						if(icmph->type == ICMP_ECHOREPLY)
+							icmp_type = ENUM_ICMP_ECHO;
+						else if(icmph->type == ICMP_TIMESTAMP)
+							icmp_type = ENUM_ICMP_TIMESTAMP;
+						else if(icmph->type == ICMP_ADDRESS)
+							icmp_type = ENUM_ICMP_ADDRESS;
+						//key is dmac:smac:sip:dip:type
+						key = lexical_cast<string>(_tmpitem.smac)+":"+lexical_cast<string>(_tmpitem.dmac)+":"+lexical_cast<string>(idip)+":"+lexical_cast<string>(isip)+":"+lexical_cast<string>(icmp_type);
+						cout<<"rsp icmp............key:"<<key<<endl;
+						if(_mICMP.find(key) != _mICMP.end())
+						{
+							_mICMP[key].dport += 1;	
+							cout<<".......key:"<<key<<" dport:"<<_mICMP[key].dport<<endl;
+							_mICMP[key].rspflow += _tmpitem.reqflow;	
+						}
+						break;
+					default:
+						break;
+					
+				}
+
+				sem_post(&_sem);
+
+				break;
+
+			case IPPROTO_IGMP:
+			case IPPROTO_GRE:
+				break;
+
 
 #if 0
 			case IPPROTO_AH:
@@ -536,12 +834,6 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 				dccp_print(ipds->cp, (const u_char *)ipds->ip, ipds->len);
 				break;
 
-			case IPPROTO_ICMP:
-				/* pass on the MF bit plus the offset to detect fragments */
-				icmp_print(ipds->cp, ipds->len, (const u_char *)ipds->ip,
-						ipds->off & (IP_MF|IP_OFFMASK));
-				break;
-
 			case IPPROTO_PIGP:
 				/*
 				 * XXX - the current IANA protocol number assignments
@@ -574,11 +866,6 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 			case IPPROTO_OSPF:
 				ospf_print(ipds->cp, ipds->len, (const u_char *)ipds->ip);
 				break;
-
-			case IPPROTO_IGMP:
-				igmp_print(ipds->cp, ipds->len);
-				break;
-
 			case IPPROTO_IPV4:
 				/* DVMRP multicast tunnel (ip-in-ip encapsulation) */
 				ip_print(ndo, ipds->cp, ipds->len);
@@ -598,12 +885,6 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 			case IPPROTO_RSVP:
 				rsvp_print(ipds->cp, ipds->len);
 				break;
-
-			case IPPROTO_GRE:
-				/* do it */
-				gre_print(ipds->cp, ipds->len);
-				break;
-
 			case IPPROTO_MOBILE:
 				mobile_print(ipds->cp, ipds->len);
 				break;
@@ -650,15 +931,12 @@ int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int 
 			ip_layer_parse(p,length);
 			return (1);
 
-#if 0
 		case ETHERTYPE_IPV6:
-			ip6_print(ndo, p, length);
-			return (1);
 		case ETHERTYPE_ARP:
 		case ETHERTYPE_REVARP:
-			arp_print(ndo, p, length, caplen);
 			return (1);
 
+#if 0
 		case ETHERTYPE_DN:
 			decnet_print(/*ndo,*/p, length, caplen);
 			return (1);
@@ -756,11 +1034,13 @@ int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int 
 			return (0);
 	}
 }
+
+
 void user_signal(int iSigNum)
 {
 	cout<<"recv signal:"<<iSigNum<<endl;
 	g_NetflowAudit->echo_msession();
-	
+	cout<<"g_coll_count:"<<g_coll_count<<endl;
 }
 
 //every 5sec save once
@@ -777,7 +1057,7 @@ void* save2db_handle(void* arg)
 	while(1)
 	{
 		get_save_file_name(SAVE_FILE,WDD_NETFLOW_AUDIT,strtmpfile,strfile);
-		ret = pNA->load_msession_2_file(strtmpfile);
+		ret = pNA->load_mSessionEnd_2_file(strtmpfile);
 		if(ret>0)	
 		{
 #if 0
@@ -794,6 +1074,22 @@ void* save2db_handle(void* arg)
 		if(n++ > circleN)
 		{
 			n = 0;
+			
+			get_save_file_name(SAVE_FILE,WDD_NETFLOW_AUDIT,strtmpfile,strfile);
+			ret = pNA->load_mSessionTimeOut_2_file(strtmpfile);
+			if(ret>0)	
+				rename(strtmpfile.c_str(),strfile.c_str());
+	
+			get_save_file_name(SAVE_FILE,WDD_NETFLOW_AUDIT,strtmpfile,strfile);
+			ret = pNA->load_mUDP_2_file(strtmpfile);
+			if(ret>0)	
+				rename(strtmpfile.c_str(),strfile.c_str());
+
+
+			get_save_file_name(SAVE_FILE,WDD_NETFLOW_AUDIT,strtmpfile,strfile);
+			ret = pNA->load_mICMP_2_file(strtmpfile);
+			if(ret>0)	
+				rename(strtmpfile.c_str(),strfile.c_str());
 		}
 
 		sleep(SLEEP_TIME);
