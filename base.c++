@@ -10,6 +10,7 @@
 #include <cstring>
 #include <dirent.h>
 #include <boost/lexical_cast.hpp>
+#include <sys/time.h>
 #include "base.h"
 
 
@@ -48,6 +49,20 @@ string get_current_time(const char *pfmt)
 	ptm =localtime(&t);
 	strftime(nowtime,sizeof(nowtime),pfmt,ptm);
 	return nowtime;
+}
+
+//return : "1496592000"
+string get_current_timestamp(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv,0);
+	return lexical_cast<string>(tv.tv_sec);
+
+}
+uint64_t get_audit_id(uint64_t count)
+{
+	string id = get_current_timestamp() + lexical_cast<string>(count);
+	return lexical_cast<uint64_t>(id);
 }
 
 int get_save_file_name(string strPath,string strTbl,string &strTempFile,string &strFile)
@@ -107,4 +122,23 @@ uint64_t mac_2_int(u_char *mac,int len)
 		ret += ul;
 	}
 	return ret;
+}
+void zero_stTblItem(stTblItem &item)
+{
+	item.id = 0;
+	item.auditid = 0;
+	item.starttime = "";
+	item.endtime = "";
+	item.ftype = "";
+	item.dmac = 0;
+	item.smac = 0;
+	item.sip = 0;
+	item.dip = 0;
+	item.sport = 0;
+	item.dport = 0;
+	item.reqflow = 0;
+	item.rspflow = 0;
+	item.sessionstate = 0;
+	item.auditext1 = "";
+	item.auditext2 = "";
 }
