@@ -6,7 +6,8 @@
 
 CC:=g++
 INCLUDE:=./
-FLAGS:= -g
+FLAGS:= -g 
+DFLAGS:= -DDEBUG
 LIBS:= -lpthread -lpcap -lboost_date_time
 BIN:=netflow_audit
 SRCS:=$(wildcard *.c++)

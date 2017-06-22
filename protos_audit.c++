@@ -15,6 +15,7 @@
 #include "protos_audit.h"
 #include "proto_type.h"
 #include "base.h"
+#include "date_time.h"
 
 using namespace boost;
 
@@ -30,11 +31,15 @@ CBaseAudit::~CBaseAudit()
 
 CTcpAudit::CTcpAudit()
 {
-
+	sem_init(&_sem,0,1);
 }
 CTcpAudit::~CTcpAudit()
 {
-
+	_mSession.clear();
+	_mmSessionEnd.clear();
+	_mSessionTimeout.clear();
+	_vSessionTimeout.clear();
+	sem_destroy(&_sem);
 }
 int CTcpAudit::audit(void *hdr, stTblItem &item)
 {
@@ -43,6 +48,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 	uint16_t sport,dport;
 	map<string,stTblItem>::iterator itm ;
 	string key;
+	struct _mngTimeout vmng;
 
 	tcph = (struct tcphdr*)((u_char*)hdr);
 	sport = ntohs(tcph->source);
@@ -53,16 +59,38 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 	{
 		_dir = ENUM_RSP;
 		key = lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport);
-		if((itm=_mSession.find(key)) != _mSession.end())
+
+		if(_mSessionTimeout.find(key) != _mSessionTimeout.end())
+		{
+			sem_wait(&_sem);////////////////////////////////
+			_mSessionTimeout[key].endtime = item.starttime;
+			_mSessionTimeout[key].sessionstate = ENUM_RST;
+			_mSessionTimeout[key].rspflow += item.reqflow;
+			_mmSessionEnd.insert(pair<string,stTblItem>(key,_mSessionTimeout[key]));
+
+			_mSessionTimeout.erase(key);
+			vector<struct _mngTimeout>::iterator itv;
+			for(itv=_vSessionTimeout.begin();itv!=_vSessionTimeout.end();itv++)
+			{
+				if(itv->strMapkey == key)
+				{
+					_vSessionTimeout.erase(itv);	
+					break;
+				}
+			}
+			sem_post(&_sem);////////////////////////////////
+		}
+		else if((itm=_mSession.find(key)) != _mSession.end())
 		{
 			itm->second.endtime = item.starttime;
 			itm->second.sessionstate = ENUM_RST;
 			itm->second.rspflow += item.reqflow;
 			sem_wait(&_sem);////////////////////////////////
-			_mSessionEnd[key] = itm->second;
+			_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
 			sem_post(&_sem);////////////////////////////////
 			_mSession.erase(itm);
 		}
+
 	}	
 	//req 3 handles
 	else if(tcph->syn == 1 && tcph->ack==0 && tcph->ece==0&&tcph->cwr==0)
@@ -84,6 +112,10 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 			item.sessionstate = ENUM_CONNECT_REQ;
 
 			_mSessionTimeout[key] =  item;
+
+			vmng.strTime = item.starttime;
+			vmng.strMapkey = key;
+			_vSessionTimeout.push_back(vmng);
 		}
 		//new connect at half close
 		else
@@ -91,7 +123,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 			//if(itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF || itm->second.sessionstate==ENUM_SERVER_CLOSE_HALF)
 			{
 				_totalTCP++;
-				_mSessionEnd[key] = itm->second;
+				_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
 				_mSessionTimeout.erase(key);
 
 				item.auditid = get_audit_id(_totalTCP);
@@ -105,6 +137,10 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 				item.sessionstate = ENUM_CONNECT_REQ;
 
 				_mSessionTimeout[key] =  item;
+
+				vmng.strTime = item.starttime;
+				vmng.strMapkey = key;
+				_vSessionTimeout.push_back(vmng);
 			}
 
 		}
@@ -129,7 +165,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 	//tcp connect end
 	else if(tcph->fin == 1 && tcph->ack==1)
 	{
-		//cout<<"end   tcp connect...............sip:"<<item.sip<<" dip:"<<item.dip<<"sport:"<<sport<<" dport:"<<dport<<endl;
+		cout<<"end  tcp connect...............sip:"<<item.sip<<" dip:"<<item.dip<<"sport:"<<sport<<" dport:"<<dport<<endl;
 		key = lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport);
 		sem_wait(&_sem);////////////////////////////////
 		if((itm=_mSession.find(key)) != _mSession.end())
@@ -140,9 +176,19 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 				itm->second.endtime = item.starttime;
 				itm->second.reqflow += item.reqflow;
 				itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
-				_mSessionEnd[key] = itm->second;
+				_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
 				_mSession.erase(itm);
 				_mSessionTimeout.erase(key);
+
+				vector<struct _mngTimeout>::iterator itv;
+				for(itv=_vSessionTimeout.begin();itv!=_vSessionTimeout.end();itv++)
+				{
+					if(itv->strMapkey == key)
+					{
+						_vSessionTimeout.erase(itv);	
+						break;
+					}
+				}
 			}
 			else
 			{
@@ -165,9 +211,20 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 					itm->second.endtime = item.starttime;
 					itm->second.rspflow += item.reqflow;
 					itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
-					_mSessionEnd[key] = itm->second;
+					_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
 					_mSession.erase(itm);
 					_mSessionTimeout.erase(key);
+
+					vector<struct _mngTimeout>::iterator itv;
+					for(itv=_vSessionTimeout.begin();itv!=_vSessionTimeout.end();itv++)
+					{
+						if(itv->strMapkey == key)
+						{
+							_vSessionTimeout.erase(itv);	
+							break;
+						}
+					}
+
 				}
 				else
 				{
@@ -203,24 +260,61 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 
 
 }
-int CTcpAudit::get_mTblItem_fintimeout(map<string,stTblItem> &dstm)
+
+  
+int CTcpAudit::get_mTblItem_fin(multimap<string,stTblItem> &dstm)
 {
 	int ret = 0;
-	map<string,stTblItem>::iterator itm;
 	sem_wait(&_sem);
-	dstm = _mSessionEnd;
-	_mSessionEnd.clear();
-	for(itm=_mSessionTimeout.begin();itm!=_mSessionTimeout.end();itm++)
-	{
-		//_mSessionTimeout have not the same key with _mSessionEnd
-		dstm[itm->first] = itm->second;
-	}
-
+	dstm = _mmSessionEnd;
+	_mmSessionEnd.clear();
 	ret = dstm.size();
 	sem_post(&_sem);
 	return 	ret;
 }
+int CTcpAudit::get_mTblItem_fintimeout(map<string,stTblItem> &dstm)
+{
+	int ret = 0;
+	long vn = -1;
+	map<string,stTblItem>::iterator itm;
+	CDateTime dtime;
+	string strTimeout;
+	string strkey;
 
+	if(_vSessionTimeout.size() == 0)
+	{
+		return 0;
+	}
+	else
+		;//cout<<"_vSessionTimeout "<<_vSessionTimeout.size()<<endl;
+
+	strTimeout = dtime.before_current_time(TCP_TIMEOUT);
+	
+	vn = recurse_get_timeout_session(_vSessionTimeout, 0, _vSessionTimeout.size(), strTimeout);
+	sem_wait(&_sem);////////////////////////////////
+	if(vn > 0)
+	{
+		for(int i=0;i<=vn;i++)
+		{
+			strkey = _vSessionTimeout[i].strMapkey;
+			if(_mSessionTimeout.find(strkey) != _mSessionTimeout.end())
+			{
+				//cout<<"tcp timeout session:"<<strkey<<endl;
+				dstm[strkey] = _mSessionTimeout[strkey];
+				_mSessionTimeout.erase(strkey);
+			}
+		}
+
+		if(vn >= (_vSessionTimeout.size()-1))
+			_vSessionTimeout.clear();
+		else
+			_vSessionTimeout.erase(_vSessionTimeout.begin(),_vSessionTimeout.begin()+vn+1);
+
+		ret = dstm.size();
+	}
+	sem_post(&_sem);////////////////////////////////
+	return 	ret;
+}
 
 CUdpAudit::CUdpAudit()
 {
@@ -282,6 +376,7 @@ int CUdpAudit::audit(void *hdr, stTblItem &item)
 	sem_post(&_sem);////////////////////////////////
 
 }
+
 int CUdpAudit::get_mTblItem_fintimeout(map<string,stTblItem> &dstm)
 {
 	int ret = 0;
@@ -291,6 +386,10 @@ int CUdpAudit::get_mTblItem_fintimeout(map<string,stTblItem> &dstm)
 	ret = dstm.size();
 	sem_post(&_sem);
 	return 	ret;
+}
+int CUdpAudit::get_mTblItem_fin(multimap<string,stTblItem> &dstm)
+{
+	return 0;
 }
 
 CIcmpAudit::CIcmpAudit()
@@ -428,6 +527,10 @@ int CIcmpAudit::get_mTblItem_fintimeout(map<string,stTblItem> &dstm)
 	ret = dstm.size();
 	sem_post(&_sem);
 	return 	ret;
+}
+int CIcmpAudit::get_mTblItem_fin(multimap<string,stTblItem> &dstm)
+{
+	return 0;
 }
 
 #if 0

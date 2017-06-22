@@ -45,6 +45,7 @@ public:
 	~CNetflowAudit();
 	void Run();
 	void echo_msession();
+	int load_over_session_2_file(string strtmpfile);
 	int load_mTimeout_2_file(string strfile);
 private:
 	friend void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_char* pkt);
@@ -54,7 +55,9 @@ private:
 	void _zero_stTblItem();
 	pcap_t* open_pcap(const char *dev);
 	void close_pcap(pcap_t *pd);
-	int load_tblitem_2_ofstream(ofstream& of,map<string,stTblItem> &m);
+	
+	template <typename mapT>
+	int load_tblitem_2_ofstream(ofstream& of,mapT &m);
 	int ether_layer_parse(u_short ether_type, const u_char* p, u_int length);
 	int ip_layer_parse(const u_char* p, u_int length);
 private:

@@ -208,17 +208,18 @@ void CNetflowAudit::close_pcap(pcap_t *pd)
 	}
 }
 
-int CNetflowAudit::load_mTimeout_2_file(string strtmpfile)
+int CNetflowAudit::load_over_session_2_file(string strtmpfile)
 {
 	int ret = 0;
 	ofstream of;
-	map<string,stTblItem> mdata;
+	multimap<string,stTblItem> mdata;
 	vector<CBaseAudit*>::iterator itv;
 
 	for(itv=_vCBaseAudit.begin();itv!=_vCBaseAudit.end();itv++)
 	{
 		int n = 0;
-		n = (*itv)->get_mTblItem_fintimeout(mdata);
+		mdata.clear();
+		n = (*itv)->get_mTblItem_fin(mdata);
 		if(n >0)
 		{
 			of.open(strtmpfile.c_str(), ios::app);	
@@ -230,10 +231,34 @@ int CNetflowAudit::load_mTimeout_2_file(string strtmpfile)
 	return ret;
 }
 
-int CNetflowAudit::load_tblitem_2_ofstream(ofstream& of,map<string,stTblItem> &m)
+int CNetflowAudit::load_mTimeout_2_file(string strtmpfile)
 {
 	int ret = 0;
-	map<string,stTblItem>::iterator itm;
+	ofstream of;
+	map<string,stTblItem> mdata;
+	vector<CBaseAudit*>::iterator itv;
+
+	for(itv=_vCBaseAudit.begin();itv!=_vCBaseAudit.end();itv++)
+	{
+		int n = 0;
+		mdata.clear();
+		n = (*itv)->get_mTblItem_fintimeout(mdata);
+		if(n > 0)
+		{
+			of.open(strtmpfile.c_str(), ios::app);	
+			load_tblitem_2_ofstream(of, mdata);
+			of.close();
+			ret += n;
+		}
+	}
+	return ret;
+}
+
+template <typename mapT>
+int CNetflowAudit::load_tblitem_2_ofstream(ofstream& of,mapT &m)
+{
+	int ret = 0;
+	typename mapT::iterator itm;
 	if(of.is_open())
 	{
 		for(itm=m.begin();itm!=m.end();itm++)
@@ -587,8 +612,8 @@ void user_signal(int iSigNum)
 //every 5sec save once
 void* save2db_handle(void* arg)
 {
-	const int SLEEP_TIME = 5;
-	const int circleN = 180/SLEEP_TIME;
+	const int SLEEP_TIME = 3;
+	const int circleN = NO_CONNECT_TIMEOUT/SLEEP_TIME;
 	int ret = 0;
 	int n = 0;
 	pthread_detach(pthread_self());
@@ -598,16 +623,16 @@ void* save2db_handle(void* arg)
 	while(1)
 	{
 		get_save_file_name(SAVE_FILE,WDD_NETFLOW_AUDIT,strtmpfile,strfile);
-		ret = pNA->load_mTimeout_2_file(strtmpfile);
+		ret = pNA->load_over_session_2_file(strtmpfile);
 		if(ret>0)	
 		{
-#if 0
+			#if DEBUG 
 			//backup
+			cout<<"load_over_session_2_file :"<<ret<<endl;
 			string cmd = string("cp -f ") + strtmpfile + " /tmp/zl";
 			system(cmd.c_str());
-#endif
+			#endif
 
-			//move tmpfile to /data/input/
 			rename(strtmpfile.c_str(),strfile.c_str());
 		}
 
@@ -618,7 +643,17 @@ void* save2db_handle(void* arg)
 			
 			get_save_file_name(SAVE_FILE,WDD_NETFLOW_AUDIT,strtmpfile,strfile);
 			ret = pNA->load_mTimeout_2_file(strtmpfile);
-				rename(strtmpfile.c_str(),strfile.c_str());
+			if(ret>0)
+			{
+			#if DEBUG 
+			//backup
+			cout<<"load_mTimeout_2_file "<<strtmpfile<<" :"<<ret<<endl;;
+			string cmd = string("cp -f ") + strtmpfile + " /tmp/zl";
+			system(cmd.c_str());
+			#endif
+
+			rename(strtmpfile.c_str(),strfile.c_str());
+			}
 		}
 
 		sleep(SLEEP_TIME);

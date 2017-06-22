@@ -142,3 +142,34 @@ void zero_stTblItem(stTblItem &item)
 	item.auditext1 = "";
 	item.auditext2 = "";
 }
+
+long recurse_get_timeout_session(vector<struct _mngTimeout> &v, int low, int height, string &strkey)
+{  
+	long middle=(low+height)/2;  
+
+	//cout<<__FUNCTION__<<" "<<low<<" "<<height<<endl;
+	if(middle>=v.size()-1)    
+	{
+		//cout<<__FUNCTION__<<"a find:"<<middle<<" "<<strkey<<endl;
+		return middle;            
+	}
+
+	if(low>height)  
+	{  
+		//cout<<"no find:"<<strkey<<endl;
+		return -1;                
+	}  
+	if(v[middle].strMapkey<=strkey && v[middle+1].strMapkey>strkey)  
+	{  
+		//cout<<__FUNCTION__<<" find:"<<middle<<" "<<strkey<<endl;
+		return middle;            
+	}  
+	else if(v[middle].strMapkey > strkey)    
+	{  
+		recurse_get_timeout_session(v,low,middle-1,strkey);  
+	}  
+	else if(v[middle].strMapkey <= strkey)   
+	{  
+		recurse_get_timeout_session(v,middle+1,height,strkey);  
+	}  
+}

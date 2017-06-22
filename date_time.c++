@@ -9,6 +9,14 @@ CDateTime::~CDateTime()
 
 }
 
+string CDateTime::before_current_time(int sec)
+{
+	ptime pnow(second_clock::local_time());
+	pnow -= seconds(sec);
+	string stime = to_iso_extended_string(pnow);
+	stime[10] = ' ';
+	return stime;
+}
 //return : "2017-05-25 17:11:00"
 string CDateTime::current_time()
 {

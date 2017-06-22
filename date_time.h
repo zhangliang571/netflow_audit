@@ -21,6 +21,7 @@ public:
 	CDateTime();
 	virtual ~CDateTime();
 
+	string before_current_time(int sec);
 	string current_time();
 	string current_iso_time();
 	time_t date_time_2_timestamp(string strt);
