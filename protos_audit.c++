@@ -9,6 +9,7 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/icmp.h>
+#include <linux/if_arp.h>
 #include <netinet/in.h>
 #include <cassert>
 #include <semaphore.h>
@@ -18,6 +19,7 @@
 #include "date_time.h"
 
 using namespace boost;
+extern uint64_t g_total_audit;
 
 CBaseAudit::CBaseAudit()
 {
@@ -25,7 +27,7 @@ CBaseAudit::CBaseAudit()
 }
 CBaseAudit::~CBaseAudit()
 {
-
+	_mTblItem.clear();
 }
 
 
@@ -41,9 +43,10 @@ CTcpAudit::~CTcpAudit()
 	_vSessionTimeout.clear();
 	sem_destroy(&_sem);
 }
-int CTcpAudit::audit(void *hdr, stTblItem &item)
+int CTcpAudit::audit(const void *hdr, stTblItem &item)
 {
 	assert(hdr != NULL);
+	int ret = 0;
 	struct tcphdr *tcph = NULL;
 	uint16_t sport,dport;
 	map<string,stTblItem>::iterator itm ;
@@ -65,6 +68,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 			sem_wait(&_sem);////////////////////////////////
 			_mSessionTimeout[key].endtime = item.starttime;
 			_mSessionTimeout[key].sessionstate = ENUM_RST;
+			_mSessionTimeout[key].rsppkts++;
 			_mSessionTimeout[key].rspflow += item.reqflow;
 			_mmSessionEnd.insert(pair<string,stTblItem>(key,_mSessionTimeout[key]));
 
@@ -84,6 +88,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 		{
 			itm->second.endtime = item.starttime;
 			itm->second.sessionstate = ENUM_RST;
+			itm->second.rsppkts++;
 			itm->second.rspflow += item.reqflow;
 			sem_wait(&_sem);////////////////////////////////
 			_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
@@ -100,13 +105,16 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 		sem_wait(&_sem);////////////////////////////////
 		if((itm=_mSessionTimeout.find(key)) == _mSessionTimeout.end())
 		{
-			_totalTCP++;
-			item.auditid = get_audit_id(_totalTCP);
+			g_total_audit++;
+			item.auditid = get_audit_id(g_total_audit);
 			item.starttime = item.starttime;
 			item.endtime = "";
-			item.ftype = "TCP";
+			item.ftype = ENUM_AUDIT_TCP;
+			item.ftypename = "TCP";
 			item.sport = sport;
 			item.dport = dport;
+			item.reqpkts = 1;
+			item.rsppkts = 0;
 			item.reqflow = item.reqflow;
 			item.rspflow = 0;
 			item.sessionstate = ENUM_CONNECT_REQ;
@@ -122,16 +130,19 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 		{
 			//if(itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF || itm->second.sessionstate==ENUM_SERVER_CLOSE_HALF)
 			{
-				_totalTCP++;
+				g_total_audit++;
 				_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
 				_mSessionTimeout.erase(key);
 
-				item.auditid = get_audit_id(_totalTCP);
+				item.auditid = get_audit_id(g_total_audit);
 				item.starttime = item.starttime;
 				item.endtime = "";
-				item.ftype = "TCP";
+				item.ftype = ENUM_AUDIT_TCP;
+				item.ftypename = "TCP";
 				item.sport = sport;
 				item.dport = dport;
+				item.reqpkts = 1;
+				item.rsppkts = 0;
 				item.reqflow = item.reqflow;
 				item.rspflow = 0;
 				item.sessionstate = ENUM_CONNECT_REQ;
@@ -155,6 +166,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 		sem_wait(&_sem);////////////////////////////////
 		if((itm=_mSessionTimeout.find(key)) != _mSessionTimeout.end())
 		{
+			itm->second.rsppkts = 1;
 			itm->second.rspflow = item.reqflow;
 			itm->second.sessionstate  = ENUM_CONNECT_RSP;		
 			_mSession[key] = itm->second;
@@ -174,6 +186,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 			if(itm->second.sessionstate == ENUM_SERVER_CLOSE_HALF)
 			{
 				itm->second.endtime = item.starttime;
+				itm->second.reqpkts++;
 				itm->second.reqflow += item.reqflow;
 				itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
 				_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
@@ -193,6 +206,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 			else
 			{
 				itm->second.endtime = item.starttime;
+				itm->second.reqpkts++;
 				itm->second.reqflow += item.reqflow;
 				itm->second.sessionstate  = ENUM_CLIENT_CLOSE_HALF;		
 				_mSessionTimeout[key] = itm->second;
@@ -209,6 +223,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 				if(itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF)
 				{
 					itm->second.endtime = item.starttime;
+					itm->second.rsppkts++;
 					itm->second.rspflow += item.reqflow;
 					itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
 					_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
@@ -229,6 +244,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 				else
 				{
 					itm->second.endtime = item.starttime;
+					itm->second.rsppkts++;
 					itm->second.rspflow += item.reqflow;
 					itm->second.sessionstate  = ENUM_SERVER_CLOSE_HALF;		
 					_mSessionTimeout[key] = itm->second;
@@ -245,6 +261,7 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 		if(_mSession.find(key) != _mSession.end())
 		{
 			_dir = ENUM_REQ;
+			_mSession[key].reqpkts++;
 			_mSession[key].reqflow += item.reqflow;
 		}
 		else
@@ -253,12 +270,13 @@ int CTcpAudit::audit(void *hdr, stTblItem &item)
 			if(_mSession.find(key) != _mSession.end())
 			{
 				_dir = ENUM_RSP;
+				_mSession[key].rsppkts++;
 				_mSession[key].rspflow += item.reqflow;
 			}
 		}
 	}
 
-
+	return ret;
 }
 
   
@@ -324,9 +342,10 @@ CUdpAudit::~CUdpAudit()
 {
 	sem_destroy(&_sem);
 }
-int CUdpAudit::audit(void *hdr, stTblItem &item)
+int CUdpAudit::audit(const void *hdr, stTblItem &item)
 {
 	assert(hdr != NULL);
+	int ret = 0;
 	struct udphdr *udph = NULL;
 	uint16_t sport,dport;
 	string key;
@@ -348,13 +367,16 @@ int CUdpAudit::audit(void *hdr, stTblItem &item)
 		if(_mTblItem.find(keyrsp) == _mTblItem.end())
 		{
 			_dir = ENUM_REQ;	
-			_totalUDP++;
-			item.auditid = get_audit_id(_totalUDP);
+			g_total_audit++;
+			item.auditid = get_audit_id(g_total_audit);
 			item.starttime = item.starttime;
 			item.endtime = "";
-			item.ftype = "UDP";
+			item.ftype = ENUM_AUDIT_UDP;
+			item.ftypename = "UDP";
 			item.sport = sport;
 			item.dport = dport;
+			item.reqpkts = 1;
+			item.rsppkts = 0;
 			item.reqflow = item.reqflow;
 			item.rspflow = 0;
 			item.sessionstate = ENUM_UDP;
@@ -364,6 +386,7 @@ int CUdpAudit::audit(void *hdr, stTblItem &item)
 		else
 		{
 			_dir = ENUM_RSP;	
+			_mTblItem[keyrsp].rsppkts++;
 			_mTblItem[keyrsp].rspflow += item.reqflow;
 		}
 
@@ -371,10 +394,12 @@ int CUdpAudit::audit(void *hdr, stTblItem &item)
 	else
 	{
 		_dir = ENUM_REQ;	
+		_mTblItem[key].rsppkts++;
 		_mTblItem[key].rspflow += item.reqflow;
 	}
 	sem_post(&_sem);////////////////////////////////
 
+	return ret;
 }
 
 int CUdpAudit::get_mTblItem_fintimeout(map<string,stTblItem> &dstm)
@@ -400,7 +425,7 @@ CIcmpAudit::~CIcmpAudit()
 {
 	sem_destroy(&_sem);
 }
-int CIcmpAudit::audit(void *hdr, stTblItem &item)
+int CIcmpAudit::audit(const void *hdr, stTblItem &item)
 {
 	assert(hdr != NULL);
 	int ret = 0;
@@ -414,15 +439,21 @@ int CIcmpAudit::audit(void *hdr, stTblItem &item)
 	switch(icmph->type)
 	{
 		case ICMP_ECHO:
-			icmp_type = ENUM_ICMP_ECHO;
 		case ICMP_DEST_UNREACH:
-			icmp_type = ENUM_ICMP_DEST_UNREACH;
 		case ICMP_REDIRECT:
-			icmp_type = ENUM_ICMP_REDIRECT;
 		case ICMP_TIMESTAMP:
-			icmp_type = ENUM_ICMP_TIMESTAMP;
 		case ICMP_ADDRESS:
-			icmp_type = ENUM_ICMP_ADDRESS;
+			if(icmph->type == ICMP_ECHO)
+				icmp_type = ENUM_ICMP_ECHO;
+			else if(icmph->type == ICMP_DEST_UNREACH)
+				icmp_type = ENUM_ICMP_DEST_UNREACH;
+			else if(icmph->type == ICMP_REDIRECT)
+				icmp_type = ENUM_ICMP_REDIRECT;
+			else if(icmph->type == ICMP_TIMESTAMP)
+				icmp_type = ENUM_ICMP_TIMESTAMP;
+			else if(icmph->type == ICMP_ADDRESS)
+				icmp_type = ENUM_ICMP_ADDRESS;
+				
 
 			//key is dmac:smac:sip:dip:type
 			key = lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.smac)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(icmp_type);
@@ -430,14 +461,15 @@ int CIcmpAudit::audit(void *hdr, stTblItem &item)
 			cout<<"CIcmpAudit::audit() icmp............key:"<<key<<endl;
 			if(_mTblItem.find(key) == _mTblItem.end())
 			{
-				_totalICMP++;
-				item.auditid = get_audit_id(_totalICMP);
+				g_total_audit++;
+				item.auditid = get_audit_id(g_total_audit);
 				item.starttime = item.starttime;
 				item.endtime = "";
-				item.ftype = "ICMP";
+				item.ftype = ENUM_AUDIT_ICMP;
+				item.ftypename = "ICMP";
 				//icmp no port, this item as icmp pkt count
-				item.sport = 1;
-				item.dport = 0;
+				item.reqpkts = 1;
+				item.rsppkts = 0;
 				if(icmph->type == ICMP_ECHO)
 				{
 					item.reqflow = item.reqflow;
@@ -468,7 +500,7 @@ int CIcmpAudit::audit(void *hdr, stTblItem &item)
 			}
 			else
 			{
-				_mTblItem[key].sport += 1;	
+				_mTblItem[key].reqpkts++;	
 				if(icmph->type == ICMP_ECHO)
 				{
 					_mTblItem[key].reqflow += item.reqflow;	
@@ -494,11 +526,14 @@ int CIcmpAudit::audit(void *hdr, stTblItem &item)
 
 			break;
 		case ICMP_ECHOREPLY:
-			icmp_type = ENUM_ICMP_ECHO;
 		case ICMP_TIMESTAMPREPLY:
-			icmp_type = ENUM_ICMP_TIMESTAMP;
 		case ICMP_ADDRESSREPLY:
-			icmp_type = ENUM_ICMP_ADDRESS;
+			if(icmph->type == ICMP_ECHOREPLY)
+				icmp_type = ENUM_ICMP_ECHO;
+			else if(icmph->type == ICMP_TIMESTAMPREPLY)
+				icmp_type = ENUM_ICMP_TIMESTAMP;
+			else if(icmph->type == ICMP_ADDRESS)
+				icmp_type = ENUM_ICMP_ADDRESS;
 
 			//key is dmac:smac:sip:dip:type
 			key = lexical_cast<string>(item.smac)+":"+lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(icmp_type);
@@ -506,7 +541,7 @@ int CIcmpAudit::audit(void *hdr, stTblItem &item)
 			cout<<"CIcmpAudit::audit() rsp icmp............key:"<<key<<endl;
 			if(_mTblItem.find(key) != _mTblItem.end())
 			{
-				_mTblItem[key].dport += 1;	
+				_mTblItem[key].rsppkts++;	
 				_mTblItem[key].rspflow += item.reqflow;	
 			}
 			break;
@@ -532,6 +567,178 @@ int CIcmpAudit::get_mTblItem_fin(multimap<string,stTblItem> &dstm)
 {
 	return 0;
 }
+
+CArpAudit::CArpAudit()
+{
+	sem_init(&_sem,0,1);
+}
+CArpAudit::~CArpAudit()
+{
+	sem_destroy(&_sem);
+}
+int CArpAudit::audit(const void *hdr, stTblItem &item)
+{
+	assert(hdr != NULL);
+	int ret = 0;
+	struct arphdr *arph = NULL;
+	struct arpdata *arpd = NULL;
+	uint16_t hrd,pro,op;
+	uint32_t isendip,itargetip;
+	uint64_t lsendmac,ltargetmac;
+	u_char hln,pln;
+	string key;
+	int arp_type;
+	string strftype;
+
+	arph = (struct arphdr*)hdr;
+	hrd = ntohs(arph->ar_hrd);
+	pro = ntohs(arph->ar_pro);
+	op  = ntohs(arph->ar_op);
+	hln = arph->ar_hln;
+	pln = arph->ar_pln;
+
+	//just support ipv4
+	if(hrd!=ARPHRD_ETHER || hln!=0x06 || pln!=0x04)
+		return -1;
+	
+
+	#if 1
+	//#pragma
+	arpd = (struct arpdata*)((char*)arph + sizeof(struct arphdr));
+
+	//save arp mac to stTblItem port
+	lsendmac   = mac_2_int(arpd->sendmac,sizeof(arpd->sendmac));
+	isendip   = arpd->sendip;
+	ltargetmac = mac_2_int(arpd->targetmac,sizeof(arpd->targetmac));
+	itargetip = arpd->targetip;
+
+	#if DEBUG
+	cout<<"...... arp ...... sendmac:\n";
+	_hex_dump(arpd->sendmac,6);
+	cout<<"...... arp ...... sendip:"<<inaddr_2_ip(_tmpitem.sip)<<endl;
+	cout<<"...... arp ...... targetmac:\n";
+	_hex_dump(arpd->targetmac,6);
+	cout<<"...... arp ...... targetip:"<<inaddr_2_ip(_tmpitem.dip)<<endl;
+	#endif
+
+	#else
+	u_char *arpp;
+	u_char mac[6];
+	uint32_t *si;
+
+	arpp = (u_char*)((char*)arph + sizeof(struct arphdr));
+	memcpy(mac,arpp,6);
+	cout<<"...... arp ...... sendmac:\n";
+	_hex_dump(mac,6);
+	arpp += 6;
+	si = (uint32_t*)(arpp);
+	cout<<"...... arp ...... sendip:"<<inaddr_2_ip(*si)<<endl;
+	arpp += 4;
+	memcpy(mac,arpp,6);
+	cout<<"...... arp ...... targetmac:\n";
+	_hex_dump(mac,6);
+	arpp += 6;
+	si = (uint32_t*)(arpp);
+	cout<<"...... arp ...... targetip:"<<inaddr_2_ip(*si)<<endl;
+	#endif
+
+	sem_wait(&_sem);////////////////////////////////
+	switch(op)
+	{
+		case ARPOP_REQUEST:
+		case ARPOP_RREQUEST:
+		case ARPOP_InREQUEST:
+			if(op == ARPOP_REQUEST)
+			{
+				arp_type = ENUM_ARP_REQ;
+				strftype = "ARP";
+			}
+			else if(op == ARPOP_RREQUEST)
+			{
+				arp_type = ENUM_RARP_REQ;
+				strftype = "RARP";
+			}
+			else if(op == ARPOP_InREQUEST)
+			{
+				arp_type = ENUM_INARP_REQ;
+				strftype = "InARP";
+			}
+			//key is dmac:smac:sendmac:sendip:targetmac:targetip:type
+			key = lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.smac)+":" \
+			      +lexical_cast<string>(lsendmac)+":"+lexical_cast<string>(isendip)+":"  \
+			      +lexical_cast<string>(ltargetmac)+":"+lexical_cast<string>(itargetip)+":" \
+			      +lexical_cast<string>(arp_type);
+			if(_mTblItem.find(key) == _mTblItem.end())
+			{
+				g_total_audit++;
+				item.auditid = get_audit_id(g_total_audit);
+				item.starttime = item.starttime;
+				item.endtime = "";
+				item.ftype = arp_type;
+				item.ftypename = strftype;
+				item.sip = isendip;
+				item.dip = itargetip;
+				//arp no port, this item as sendmac and target mac 
+				item.sport = lsendmac;
+				item.dport = ltargetmac;
+				item.reqpkts = 1;
+				item.rsppkts = 0;
+				item.reqflow = item.reqflow;
+				item.rspflow = 0;
+				item.sessionstate = ENUM_ARP_REQ;
+				_mTblItem[key] = item;	
+			}
+			else
+			{
+				_mTblItem[key].reqpkts++;	
+				_mTblItem[key].reqflow += item.reqflow;	
+			}
+
+			break;
+		case ARPOP_REPLY:
+		case ARPOP_RREPLY:
+		case ARPOP_InREPLY:
+			if(op == ARPOP_REPLY)
+				arp_type = ENUM_ARP_REQ;
+			else if(op == ARPOP_RREPLY)
+				arp_type = ENUM_RARP_REQ;
+			else if(op == ARPOP_InREPLY)
+				arp_type = ENUM_INARP_REQ;
+
+			//key is dmac:smac:sendmac:sendip:targetmac:targetip:type
+			key = lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.smac)+":" \
+			      +lexical_cast<string>(lsendmac)+":"+lexical_cast<string>(isendip)+":"  \
+			      +lexical_cast<string>(ltargetmac)+":"+lexical_cast<string>(itargetip)+":" \
+			      +lexical_cast<string>(arp_type);
+			if(_mTblItem.find(key) != _mTblItem.end())
+			{
+				_mTblItem[key].rsppkts++;	
+				_mTblItem[key].rspflow += item.reqflow;	
+			}
+			break;
+		default:
+			return 0;
+	}
+	sem_post(&_sem);////////////////////////////////
+
+	return ret;
+}
+int CArpAudit::get_mTblItem_fintimeout(map<string,stTblItem> &dstm)
+{
+	int ret = 0;
+	sem_wait(&_sem);
+	dstm = _mTblItem;
+	_mTblItem.clear();
+	ret = dstm.size();
+	sem_post(&_sem);
+	return 	ret;
+}
+int CArpAudit::get_mTblItem_fin(multimap<string,stTblItem> &dstm)
+{
+	return 0;
+}
+
+
 
 #if 0
 int main()

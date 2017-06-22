@@ -129,7 +129,8 @@ void zero_stTblItem(stTblItem &item)
 	item.auditid = 0;
 	item.starttime = "";
 	item.endtime = "";
-	item.ftype = "";
+	item.ftype = -1;
+	item.ftypename = "";
 	item.dmac = 0;
 	item.smac = 0;
 	item.sip = 0;

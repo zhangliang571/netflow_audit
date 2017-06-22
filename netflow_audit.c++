@@ -6,9 +6,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <linux/ip.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
-#include <linux/icmp.h>
 #include <netinet/in.h>
 #include <pcap/pcap.h>
 #include <assert.h>
@@ -29,6 +26,7 @@ using namespace std;
 
 CDateTime *g_Date; 
 CNetflowAudit *g_NetflowAudit; 
+uint64_t g_total_audit;
 
 
 int g_coll_count;
@@ -120,9 +118,11 @@ int CNetflowAudit::mount_baseaudit()
 	CTcpAudit *_cTcpAudit  = new CTcpAudit;
 	CUdpAudit *_cUdpAudit  = new CUdpAudit;
 	CIcmpAudit *_cIcmpAudit  = new CIcmpAudit;
+	CArpAudit *_cArpAudit  = new CArpAudit;
 	_vCBaseAudit.push_back(_cTcpAudit);
 	_vCBaseAudit.push_back(_cUdpAudit);
 	_vCBaseAudit.push_back(_cIcmpAudit);
+	_vCBaseAudit.push_back(_cArpAudit);
 	return _vCBaseAudit.size();
 }
 int CNetflowAudit::umount_baseaudit()
@@ -269,12 +269,15 @@ int CNetflowAudit::load_tblitem_2_ofstream(ofstream& of,mapT &m)
 			<<"\""<<itm->second.starttime<<"\","
 			<<"\""<<itm->second.endtime<<"\","
 			<<"\""<<itm->second.ftype<<"\","
+			<<"\""<<itm->second.ftypename<<"\","
 			<<"\""<<itm->second.dmac<<"\","
 			<<"\""<<itm->second.smac<<"\","
 			<<"\""<<inaddr_2_ip(itm->second.sip)<<"\","
 			<<"\""<<inaddr_2_ip(itm->second.dip)<<"\","
 			<<"\""<<itm->second.sport<<"\","
 			<<"\""<<itm->second.dport<<"\","
+			<<"\""<<itm->second.reqpkts<<"\","
+			<<"\""<<itm->second.rsppkts<<"\","
 			<<"\""<<itm->second.reqflow<<"\","
 			<<"\""<<itm->second.rspflow<<"\","
 			<<"\""<<itm->second.sessionstate<<"\","
@@ -313,6 +316,7 @@ void CNetflowAudit::echo_msession()
 
 int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 {
+	int ret = 0;
 	struct iphdr *iph = NULL;
 	struct tcphdr *tcph = NULL;
 	struct udphdr *udph = NULL;
@@ -340,16 +344,16 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 		{
 			case IPPROTO_TCP:
 				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
-				_vCBaseAudit[0]->audit(tcph, _tmpitem);
+				ret = _vCBaseAudit[ENUM_AUDIT_TCP]->audit(tcph, _tmpitem);
 
 				break;
 			case IPPROTO_UDP:
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
-				_vCBaseAudit[1]->audit(udph, _tmpitem);
+				ret = _vCBaseAudit[ENUM_AUDIT_UDP]->audit(udph, _tmpitem);
 				break;
 			case IPPROTO_ICMP:
 				icmph = (struct icmphdr*)((u_char*)iph + iph->ihl*4);
-				_vCBaseAudit[2]->audit(icmph, _tmpitem);
+				ret = _vCBaseAudit[ENUM_AUDIT_ICMP]->audit(icmph, _tmpitem);
 				break;
 			case IPPROTO_IGMP:
 			case IPPROTO_GRE:
@@ -487,6 +491,14 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 		}
 		
 	}
+	return ret;
+}
+
+int CNetflowAudit::arp_layer_parse(const u_char* p, u_int length)
+{
+	int ret = 0;
+	ret = _vCBaseAudit[ENUM_AUDIT_ARP]->audit(p, _tmpitem);
+	return ret;
 }
 
 int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int length)
@@ -498,8 +510,10 @@ int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int 
 			return (1);
 
 		case ETHERTYPE_IPV6:
+			break;
 		case ETHERTYPE_ARP:
 		case ETHERTYPE_REVARP:
+			arp_layer_parse(p,length);
 			return (1);
 
 #if 0
@@ -599,6 +613,7 @@ int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int 
 		default:
 			return (0);
 	}
+	return 0;
 }
 
 

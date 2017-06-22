@@ -4,6 +4,16 @@
 #include <semaphore.h>
 #include "base.h"
 
+enum E_AUDIT_FTYPE
+{
+	ENUM_AUDIT_TCP = 0,
+	ENUM_AUDIT_UDP,
+	ENUM_AUDIT_ICMP,
+	ENUM_AUDIT_ARP,
+	ENUM_AUDIT_TOT,
+};
+
+
 //parent class
 class CBaseAudit
 {
@@ -11,7 +21,7 @@ public:
 	CBaseAudit();
 	virtual string name(){}
 	virtual ~CBaseAudit();
-	virtual int audit(void *hdr, stTblItem &item){}
+	virtual int audit(const void *hdr, stTblItem &item){}
 	virtual int get_mTblItem_fin(multimap<string,stTblItem> &dstm){}
 	virtual int get_mTblItem_fintimeout(map<string,stTblItem> &dstm){}
 	map<string,stTblItem> _mTblItem;
@@ -27,13 +37,12 @@ public:
 	CTcpAudit();
 	virtual ~CTcpAudit();
 	string name(){return "CTcpAudit";}
-	int audit(void *hdr, stTblItem &item);
+	int audit(const void *hdr, stTblItem &item);
 	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
 	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
 
 private:
 	sem_t _sem;
-	uint64_t _totalTCP;
 
 	map<string,stTblItem> _mSession;
 	multimap<string,stTblItem> _mmSessionEnd;
@@ -50,12 +59,11 @@ public:
 	CUdpAudit();
 	virtual ~CUdpAudit();
 	string name(){return "CUdpAudit";}
-	int audit(void *hdr, stTblItem &item);
+	int audit(const void *hdr, stTblItem &item);
 	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
 	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
 private:
 	sem_t _sem;
-	uint64_t _totalUDP;
 };
 
 //icmp audit
@@ -65,13 +73,28 @@ public:
 	CIcmpAudit();
 	virtual ~CIcmpAudit();
 	string name(){return "CIcmpAudit";}
-	int audit(void *hdr, stTblItem &item);
+	int audit(const void *hdr, stTblItem &item);
 	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
 	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
 private:
 	sem_t _sem;
-	uint64_t _totalICMP;
 };
+
+//icmp audit
+class CArpAudit:public CBaseAudit
+{
+public:
+	CArpAudit();
+	virtual ~CArpAudit();
+	string name(){return "CArpAudit";}
+	int audit(const void *hdr, stTblItem &item);
+	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
+	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
+private:
+	sem_t _sem;
+};
+
+
 
 
 

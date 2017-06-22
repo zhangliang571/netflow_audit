@@ -30,13 +30,6 @@ typedef struct _timeoutList
 	string key;
 }TimeoutList;
 
-struct framehdr
-{
-	u_char dstmac[6];
-	u_char srcmac[6];
-	uint16_t ftype;
-};
-
 class CNetflowAudit
 {
 public:
@@ -60,6 +53,7 @@ private:
 	int load_tblitem_2_ofstream(ofstream& of,mapT &m);
 	int ether_layer_parse(u_short ether_type, const u_char* p, u_int length);
 	int ip_layer_parse(const u_char* p, u_int length);
+	int arp_layer_parse(const u_char* p, u_int length);
 private:
 	string _strdev;
 	pcap_t *_pd;

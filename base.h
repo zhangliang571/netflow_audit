@@ -30,18 +30,25 @@ enum STREAM_DIR
 
 enum E_SESSION_STATE
 {
+	//tcp
 	ENUM_CONNECT_REQ = 1,
 	ENUM_CONNECT_RSP,
 	ENUM_CLIENT_CLOSE_HALF,
 	ENUM_SERVER_CLOSE_HALF,
 	ENUM_CLOSE_SUCCESS,
 	ENUM_RST,
-	ENUM_UDP,
-	ENUM_ICMP_ECHO,
+	//udp
+	ENUM_UDP, //7
+	//icmp
+	ENUM_ICMP_ECHO, //8
 	ENUM_ICMP_DEST_UNREACH,
 	ENUM_ICMP_REDIRECT,
 	ENUM_ICMP_TIMESTAMP,
 	ENUM_ICMP_ADDRESS,
+	//arp
+	ENUM_ARP_REQ, //13
+	ENUM_RARP_REQ,
+	ENUM_INARP_REQ,
 	ENUM_STATE_TOTAL,
 };
 
@@ -52,13 +59,16 @@ typedef struct _stTblItem
 	u_int auditid;
 	string starttime;
 	string endtime;
-	string ftype;
+	int ftype;
+	string ftypename;
 	uint64_t dmac;
 	uint64_t smac;
 	uint64_t sip;
 	uint64_t dip;
-	u_short sport;
-	u_short dport;
+	u_long sport;
+	u_long dport;
+	u_long reqpkts;
+	u_long rsppkts;
 	u_long reqflow;
 	u_long rspflow;
 	int sessionstate;
@@ -71,6 +81,24 @@ struct _mngTimeout
 	string strTime;
 	string strMapkey;
 };
+
+struct framehdr
+{
+	u_char dstmac[6];
+	u_char srcmac[6];
+	uint16_t ftype;
+};
+
+#pragma pack(2)
+struct arpdata
+{
+	u_char sendmac[6];
+	uint32_t sendip;
+	u_char targetmac[6];
+	uint32_t targetip;
+};
+#pragma pack()
+
 
 
 
