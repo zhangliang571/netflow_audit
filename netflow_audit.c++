@@ -115,21 +115,21 @@ int CNetflowAudit::init()
 }
 int CNetflowAudit::mount_baseaudit()
 {
-	CTcpAudit *_cTcpAudit  = new CTcpAudit;
-	CUdpAudit *_cUdpAudit  = new CUdpAudit;
-	CIcmpAudit *_cIcmpAudit  = new CIcmpAudit;
-	CArpAudit *_cArpAudit  = new CArpAudit;
-	_vCBaseAudit.push_back(_cTcpAudit);
-	_vCBaseAudit.push_back(_cUdpAudit);
-	_vCBaseAudit.push_back(_cIcmpAudit);
-	_vCBaseAudit.push_back(_cArpAudit);
-	return _vCBaseAudit.size();
+	CTcpAudit *_cTcpAudit   = new CTcpAudit;
+	CUdpAudit *_cUdpAudit   = new CUdpAudit;
+	CIcmpAudit *_cIcmpAudit = new CIcmpAudit;
+	CArpAudit *_cArpAudit   = new CArpAudit;
+	_mCBaseAudit[ENUM_AUDIT_TCP]  = _cTcpAudit;
+	_mCBaseAudit[ENUM_AUDIT_UDP]  = _cUdpAudit;
+	_mCBaseAudit[ENUM_AUDIT_ICMP] = _cIcmpAudit;
+	_mCBaseAudit[ENUM_AUDIT_ARP]  = _cArpAudit;
+	return _mCBaseAudit.size();
 }
 int CNetflowAudit::umount_baseaudit()
 {
-	vector<CBaseAudit*>::iterator itv;
-	for(itv=_vCBaseAudit.begin();itv!=_vCBaseAudit.end();itv++)
-		delete *itv;
+	map<int,CBaseAudit*>::iterator itm;
+	for(itm=_mCBaseAudit.begin();itm!=_mCBaseAudit.end();itm++)
+		delete itm->second;
 }
 void CNetflowAudit::_zero_stTblItem()
 {
@@ -213,13 +213,13 @@ int CNetflowAudit::load_over_session_2_file(string strtmpfile)
 	int ret = 0;
 	ofstream of;
 	multimap<string,stTblItem> mdata;
-	vector<CBaseAudit*>::iterator itv;
+	map<int,CBaseAudit*>::iterator itm;
 
-	for(itv=_vCBaseAudit.begin();itv!=_vCBaseAudit.end();itv++)
+	for(itm=_mCBaseAudit.begin();itm!=_mCBaseAudit.end();itm++)
 	{
 		int n = 0;
 		mdata.clear();
-		n = (*itv)->get_mTblItem_fin(mdata);
+		n = itm->second->get_mTblItem_fin(mdata);
 		if(n >0)
 		{
 			of.open(strtmpfile.c_str(), ios::app);	
@@ -236,13 +236,13 @@ int CNetflowAudit::load_mTimeout_2_file(string strtmpfile)
 	int ret = 0;
 	ofstream of;
 	map<string,stTblItem> mdata;
-	vector<CBaseAudit*>::iterator itv;
+	map<int,CBaseAudit*>::iterator itm;
 
-	for(itv=_vCBaseAudit.begin();itv!=_vCBaseAudit.end();itv++)
+	for(itm=_mCBaseAudit.begin();itm!=_mCBaseAudit.end();itm++)
 	{
 		int n = 0;
 		mdata.clear();
-		n = (*itv)->get_mTblItem_fintimeout(mdata);
+		n = itm->second->get_mTblItem_fintimeout(mdata);
 		if(n > 0)
 		{
 			of.open(strtmpfile.c_str(), ios::app);	
@@ -344,16 +344,19 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 		{
 			case IPPROTO_TCP:
 				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
-				ret = _vCBaseAudit[ENUM_AUDIT_TCP]->audit(tcph, _tmpitem);
+				if(_mCBaseAudit[ENUM_AUDIT_TCP])
+				ret = _mCBaseAudit[ENUM_AUDIT_TCP]->audit(tcph, _tmpitem);
 
 				break;
 			case IPPROTO_UDP:
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
-				ret = _vCBaseAudit[ENUM_AUDIT_UDP]->audit(udph, _tmpitem);
+				if(_mCBaseAudit[ENUM_AUDIT_UDP])
+				ret = _mCBaseAudit[ENUM_AUDIT_UDP]->audit(udph, _tmpitem);
 				break;
 			case IPPROTO_ICMP:
 				icmph = (struct icmphdr*)((u_char*)iph + iph->ihl*4);
-				ret = _vCBaseAudit[ENUM_AUDIT_ICMP]->audit(icmph, _tmpitem);
+				if(_mCBaseAudit[ENUM_AUDIT_ICMP])
+				ret = _mCBaseAudit[ENUM_AUDIT_ICMP]->audit(icmph, _tmpitem);
 				break;
 			case IPPROTO_IGMP:
 			case IPPROTO_GRE:
@@ -497,7 +500,8 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 int CNetflowAudit::arp_layer_parse(const u_char* p, u_int length)
 {
 	int ret = 0;
-	ret = _vCBaseAudit[ENUM_AUDIT_ARP]->audit(p, _tmpitem);
+	if(_mCBaseAudit[ENUM_AUDIT_ARP])
+	ret = _mCBaseAudit[ENUM_AUDIT_ARP]->audit(p, _tmpitem);
 	return ret;
 }
 
@@ -728,6 +732,9 @@ int main(int argc, char *argv[])
 	pthread_t pid_dbimport,pid_save2db;
 	int ret = 0;
 
+	#if DEBUG 
+	system("mkdir -p /tmp/zl");
+	#endif
 	::signal(SIGUSR1,user_signal);
 	pthread_create(&pid_dbimport,NULL,db_import_handle,NULL);
 

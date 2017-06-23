@@ -65,12 +65,12 @@ typedef struct _stTblItem
 	uint64_t smac;
 	uint64_t sip;
 	uint64_t dip;
-	u_long sport;
-	u_long dport;
-	u_long reqpkts;
-	u_long rsppkts;
-	u_long reqflow;
-	u_long rspflow;
+	uint64_t sport;
+	uint64_t dport;
+	uint64_t reqpkts;
+	uint64_t rsppkts;
+	uint64_t reqflow;
+	uint64_t rspflow;
 	int sessionstate;
 	string auditext1;
 	string auditext2;

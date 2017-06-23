@@ -6,7 +6,7 @@
 
 CC:=g++
 INCLUDE:=./
-FLAGS:= -g 
+FLAGS:= -g  -DDEBUG
 DFLAGS:= -DDEBUG
 LIBS:= -lpthread -lpcap -lboost_date_time
 BIN:=netflow_audit

@@ -358,7 +358,6 @@ int CUdpAudit::audit(const void *hdr, stTblItem &item)
 
 	key = lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport);
 
-	cout<<"CUdpAudit::audit() ...... "<<key<<endl;
 
 	sem_wait(&_sem);////////////////////////////////
 	if(_mTblItem.find(key) == _mTblItem.end())
@@ -458,7 +457,6 @@ int CIcmpAudit::audit(const void *hdr, stTblItem &item)
 			//key is dmac:smac:sip:dip:type
 			key = lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.smac)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(icmp_type);
 
-			cout<<"CIcmpAudit::audit() icmp............key:"<<key<<endl;
 			if(_mTblItem.find(key) == _mTblItem.end())
 			{
 				g_total_audit++;
@@ -538,7 +536,6 @@ int CIcmpAudit::audit(const void *hdr, stTblItem &item)
 			//key is dmac:smac:sip:dip:type
 			key = lexical_cast<string>(item.smac)+":"+lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(icmp_type);
 
-			cout<<"CIcmpAudit::audit() rsp icmp............key:"<<key<<endl;
 			if(_mTblItem.find(key) != _mTblItem.end())
 			{
 				_mTblItem[key].rsppkts++;	
@@ -613,12 +610,12 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 	itargetip = arpd->targetip;
 
 	#if DEBUG
-	cout<<"...... arp ...... sendmac:\n";
+	cout<<"...... arp ...... sendmac:"<<lsendmac<<endl;
 	_hex_dump(arpd->sendmac,6);
-	cout<<"...... arp ...... sendip:"<<inaddr_2_ip(_tmpitem.sip)<<endl;
-	cout<<"...... arp ...... targetmac:\n";
+	cout<<"...... arp ...... sendip:"<<inaddr_2_ip(isendip)<<endl;
+	cout<<"...... arp ...... targetmac:"<<ltargetmac<<endl;
 	_hex_dump(arpd->targetmac,6);
-	cout<<"...... arp ...... targetip:"<<inaddr_2_ip(_tmpitem.dip)<<endl;
+	cout<<"...... arp ...... targetip:"<<inaddr_2_ip(itargetip)<<endl;
 	#endif
 
 	#else
@@ -663,10 +660,10 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 				arp_type = ENUM_INARP_REQ;
 				strftype = "InARP";
 			}
-			//key is dmac:smac:sendmac:sendip:targetmac:targetip:type
+			//key is dmac:smac:sendmac:sendip:targetip:type
 			key = lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.smac)+":" \
 			      +lexical_cast<string>(lsendmac)+":"+lexical_cast<string>(isendip)+":"  \
-			      +lexical_cast<string>(ltargetmac)+":"+lexical_cast<string>(itargetip)+":" \
+			      +lexical_cast<string>(itargetip)+":" \
 			      +lexical_cast<string>(arp_type);
 			if(_mTblItem.find(key) == _mTblItem.end())
 			{
@@ -705,10 +702,10 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 			else if(op == ARPOP_InREPLY)
 				arp_type = ENUM_INARP_REQ;
 
-			//key is dmac:smac:sendmac:sendip:targetmac:targetip:type
-			key = lexical_cast<string>(item.dmac)+":"+lexical_cast<string>(item.smac)+":" \
-			      +lexical_cast<string>(lsendmac)+":"+lexical_cast<string>(isendip)+":"  \
-			      +lexical_cast<string>(ltargetmac)+":"+lexical_cast<string>(itargetip)+":" \
+			//key is smac:dmac:targetmac:targetip:sendip:type
+			key = lexical_cast<string>(item.smac)+":"+lexical_cast<string>(item.dmac)+":" \
+			      +lexical_cast<string>(ltargetmac)+":"+lexical_cast<string>(itargetip)+":"  \
+			      +lexical_cast<string>(isendip)+":" \
 			      +lexical_cast<string>(arp_type);
 			if(_mTblItem.find(key) != _mTblItem.end())
 			{

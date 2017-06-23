@@ -100,7 +100,7 @@ ETHERTYPE_VPROD	proto_type.h	25;"	d
 ETHER_HDRLEN	proto_type.h	4;"	d
 E_AUDIT_FTYPE	protos_audit.h	/^enum E_AUDIT_FTYPE$/;"	g
 E_SESSION_STATE	base.h	/^enum E_SESSION_STATE$/;"	g
-FLAGS	makefile	/^FLAGS:= -g $/;"	m
+FLAGS	makefile	/^FLAGS:= -g  -DDEBUG$/;"	m
 HAVE_PF_RING	netflow_audit.c++	21;"	d	file:
 INCLUDE	makefile	/^INCLUDE:=.\/$/;"	m
 IPPROTO_IPV4	proto_type.h	58;"	d
@@ -122,6 +122,7 @@ __NETFLOW_AUDIT_H__	netflow_audit.h	2;"	d
 __PROTOS_AUDIT_H__	protos_audit.h	2;"	d
 _dir	protos_audit.h	/^	enum STREAM_DIR _dir;$/;"	m	class:CBaseAudit	typeref:enum:CBaseAudit::STREAM_DIR
 _hex_dump	base.c++	/^void _hex_dump(const u_char *p,int len)$/;"	f
+_mCBaseAudit	netflow_audit.h	/^	map<int,CBaseAudit*> _mCBaseAudit;$/;"	m	class:CNetflowAudit
 _mSession	protos_audit.h	/^	map<string,stTblItem> _mSession;$/;"	m	class:CTcpAudit
 _mSessionTimeout	protos_audit.h	/^	map<string,stTblItem> _mSessionTimeout;$/;"	m	class:CTcpAudit
 _mTblItem	protos_audit.h	/^	map<string,stTblItem> _mTblItem;$/;"	m	class:CBaseAudit
@@ -136,9 +137,7 @@ _stTblItem	base.h	/^typedef struct _stTblItem$/;"	s
 _strdev	netflow_audit.h	/^	string _strdev;$/;"	m	class:CNetflowAudit
 _timeoutList	netflow_audit.h	/^typedef struct _timeoutList$/;"	s
 _tmpitem	netflow_audit.h	/^	stTblItem _tmpitem;$/;"	m	class:CNetflowAudit
-_vCBaseAudit	netflow_audit.h	/^	vector<CBaseAudit*> _vCBaseAudit;$/;"	m	class:CNetflowAudit
 _vSessionTimeout	protos_audit.h	/^	vector<struct _mngTimeout> _vSessionTimeout;$/;"	m	class:CTcpAudit
-_vTL	netflow_audit.h	/^	vector<TimeoutList> _vTL;$/;"	m	class:CNetflowAudit
 _zero_stTblItem	netflow_audit.c++	/^void CNetflowAudit::_zero_stTblItem()$/;"	f	class:CNetflowAudit
 arp_layer_parse	netflow_audit.c++	/^int CNetflowAudit::arp_layer_parse(const u_char* p, u_int length)$/;"	f	class:CNetflowAudit
 arpdata	base.h	/^struct arpdata$/;"	s
@@ -159,7 +158,7 @@ date_time_2_timestamp	date_time.c++	/^time_t CDateTime::date_time_2_timestamp(st
 db_import_handle	netflow_audit.c++	/^void* db_import_handle(void* arg)$/;"	f
 dip	base.h	/^	uint64_t dip;$/;"	m	struct:_stTblItem
 dmac	base.h	/^	uint64_t dmac;$/;"	m	struct:_stTblItem
-dport	base.h	/^	u_long dport;$/;"	m	struct:_stTblItem
+dport	base.h	/^	uint64_t dport;$/;"	m	struct:_stTblItem
 dstmac	base.h	/^	u_char dstmac[6];$/;"	m	struct:framehdr
 echo_msession	netflow_audit.c++	/^void CNetflowAudit::echo_msession()$/;"	f	class:CNetflowAudit
 echo_time	date_time.c++	/^void CDateTime::echo_time()$/;"	f	class:CDateTime
@@ -206,17 +205,17 @@ name	protos_audit.h	/^	string name(){return "CUdpAudit";}$/;"	f	class:CUdpAudit
 name	protos_audit.h	/^	virtual string name(){}$/;"	f	class:CBaseAudit
 open_pcap	netflow_audit.c++	/^pcap_t* CNetflowAudit::open_pcap(const char *dev)$/;"	f	class:CNetflowAudit
 recurse_get_timeout_session	base.c++	/^long recurse_get_timeout_session(vector<struct _mngTimeout> &v, int low, int height, string &strkey)$/;"	f
-reqflow	base.h	/^	u_long reqflow;$/;"	m	struct:_stTblItem
-reqpkts	base.h	/^	u_long reqpkts;$/;"	m	struct:_stTblItem
-rspflow	base.h	/^	u_long rspflow;$/;"	m	struct:_stTblItem
-rsppkts	base.h	/^	u_long rsppkts;$/;"	m	struct:_stTblItem
+reqflow	base.h	/^	uint64_t reqflow;$/;"	m	struct:_stTblItem
+reqpkts	base.h	/^	uint64_t reqpkts;$/;"	m	struct:_stTblItem
+rspflow	base.h	/^	uint64_t rspflow;$/;"	m	struct:_stTblItem
+rsppkts	base.h	/^	uint64_t rsppkts;$/;"	m	struct:_stTblItem
 save2db_handle	netflow_audit.c++	/^void* save2db_handle(void* arg)$/;"	f
 sendip	base.h	/^	uint32_t sendip;$/;"	m	struct:arpdata
 sendmac	base.h	/^	u_char sendmac[6];$/;"	m	struct:arpdata
 sessionstate	base.h	/^	int sessionstate;$/;"	m	struct:_stTblItem
 sip	base.h	/^	uint64_t sip;$/;"	m	struct:_stTblItem
 smac	base.h	/^	uint64_t smac;$/;"	m	struct:_stTblItem
-sport	base.h	/^	u_long sport;$/;"	m	struct:_stTblItem
+sport	base.h	/^	uint64_t sport;$/;"	m	struct:_stTblItem
 srcmac	base.h	/^	u_char srcmac[6];$/;"	m	struct:framehdr
 stTblItem	base.h	/^}stTblItem;$/;"	t	typeref:struct:_stTblItem
 starttime	base.h	/^	string starttime;$/;"	m	struct:_stTblItem

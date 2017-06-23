@@ -80,7 +80,7 @@ private:
 	sem_t _sem;
 };
 
-//icmp audit
+//arp audit
 class CArpAudit:public CBaseAudit
 {
 public:

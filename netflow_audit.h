@@ -61,11 +61,12 @@ private:
 	//one pcap stTblItem data
 	stTblItem _tmpitem;
 
-	vector<CBaseAudit*> _vCBaseAudit;
+	//key is enum E_AUDIT_FTYPE
+	map<int,CBaseAudit*> _mCBaseAudit;
 
 
-	vector<TimeoutList> _vTL;
 };
+
 
 #endif
 
