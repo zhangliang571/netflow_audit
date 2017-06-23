@@ -56,7 +56,7 @@ enum E_SESSION_STATE
 typedef struct _stTblItem
 {
 	int id;
-	u_int auditid;
+	uint64_t auditid;
 	string starttime;
 	string endtime;
 	int ftype;
