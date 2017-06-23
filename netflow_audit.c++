@@ -365,128 +365,32 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 
 #if 0
 			case IPPROTO_AH:
-				ipds->nh = *ipds->cp;
-				ipds->advance = ah_print(ipds->cp);
-				if (ipds->advance <= 0)
-					break;
-				ipds->cp += ipds->advance;
-				ipds->len -= ipds->advance;
-				goto again;
-
 			case IPPROTO_ESP:
-				{
-					int enh, padlen;
-					ipds->advance = esp_print(ndo, ipds->cp, ipds->len,
-							(const u_char *)ipds->ip,
-							&enh, &padlen);
-					if (ipds->advance <= 0)
-						break;
-					ipds->cp += ipds->advance;
-					ipds->len -= ipds->advance + padlen;
-					ipds->nh = enh & 0xff;
-					goto again;
-				}
-
 			case IPPROTO_IPCOMP:
-				{
-					int enh;
-					ipds->advance = ipcomp_print(ipds->cp, &enh);
-					if (ipds->advance <= 0)
-						break;
-					ipds->cp += ipds->advance;
-					ipds->len -= ipds->advance;
-					ipds->nh = enh & 0xff;
-					goto again;
-				}
-
 			case IPPROTO_SCTP:
-				sctp_print(ipds->cp, (const u_char *)ipds->ip, ipds->len);
-				break;
 
 			case IPPROTO_DCCP:
-				dccp_print(ipds->cp, (const u_char *)ipds->ip, ipds->len);
-				break;
 
 			case IPPROTO_PIGP:
-				/*
-				 * XXX - the current IANA protocol number assignments
-				 * page lists 9 as "any private interior gateway
-				 * (used by Cisco for their IGRP)" and 88 as
-				 * "EIGRP" from Cisco.
-				 *
-				 * Recent BSD <netinet/in.h> headers define
-				 * IP_PROTO_PIGP as 9 and IP_PROTO_IGRP as 88.
-				 * We define IP_PROTO_PIGP as 9 and
-				 * IP_PROTO_EIGRP as 88; those names better
-				 * match was the current protocol number
-				 * assignments say.
-				 */
-				igrp_print(ipds->cp, ipds->len, (const u_char *)ipds->ip);
-				break;
-
 			case IPPROTO_EIGRP:
-				eigrp_print(ipds->cp, ipds->len);
-				break;
 
 			case IPPROTO_ND:
-				ND_PRINT((ndo, " nd %d", ipds->len));
-				break;
 
 			case IPPROTO_EGP:
-				egp_print(ipds->cp, ipds->len);
-				break;
 
 			case IPPROTO_OSPF:
-				ospf_print(ipds->cp, ipds->len, (const u_char *)ipds->ip);
-				break;
 			case IPPROTO_IPV4:
-				/* DVMRP multicast tunnel (ip-in-ip encapsulation) */
-				ip_print(ndo, ipds->cp, ipds->len);
-				if (! vflag) {
-					ND_PRINT((ndo, " (ipip-proto-4)"));
-					return;
-				}
-				break;
-
 #ifdef INET6
 			case IPPROTO_IPV6:
-				/* ip6-in-ip encapsulation */
-				ip6_print(ndo, ipds->cp, ipds->len);
-				break;
 #endif /*INET6*/
 
 			case IPPROTO_RSVP:
-				rsvp_print(ipds->cp, ipds->len);
-				break;
 			case IPPROTO_MOBILE:
-				mobile_print(ipds->cp, ipds->len);
-				break;
 
 			case IPPROTO_PIM:
-				vec[0].ptr = ipds->cp;
-				vec[0].len = ipds->len;
-				pim_print(ipds->cp, ipds->len, in_cksum(vec, 1));
-				break;
 
 			case IPPROTO_VRRP:
-				if (packettype == PT_CARP) {
-					if (vflag)
-						(void)printf("carp %s > %s: ",
-								ipaddr_string(&ipds->ip->ip_src),
-								ipaddr_string(&ipds->ip->ip_dst));
-					carp_print(ipds->cp, ipds->len, ipds->ip->ip_ttl);
-				} else {
-					if (vflag)
-						(void)printf("vrrp %s > %s: ",
-								ipaddr_string(&ipds->ip->ip_src),
-								ipaddr_string(&ipds->ip->ip_dst));
-					vrrp_print(ipds->cp, ipds->len, ipds->ip->ip_ttl);
-				}
-				break;
-
 			case IPPROTO_PGM:
-				pgm_print(ipds->cp, ipds->len, (const u_char *)ipds->ip);
-				break;
 
 #endif
 			default:
@@ -522,65 +426,46 @@ int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int 
 
 #if 0
 		case ETHERTYPE_DN:
-			decnet_print(/*ndo,*/p, length, caplen);
 			return (1);
 
 		case ETHERTYPE_ATALK:
-			if (ndo->ndo_vflag)
-				fputs("et1 ", stdout);
-			atalk_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_AARP:
-			aarp_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_IPX:
-			ND_PRINT((ndo, "(NOV-ETHII) "));
-			ipx_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_ISO:
-			isoclns_print(/*ndo,*/p+1, length-1, length-1);
 			return(1);
 
 		case ETHERTYPE_PPPOED:
 		case ETHERTYPE_PPPOES:
 		case ETHERTYPE_PPPOED2:
 		case ETHERTYPE_PPPOES2:
-			pppoe_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_EAPOL:
-			eap_print(ndo, p, length);
 			return (1);
 
 		case ETHERTYPE_RRCP:
-			rrcp_print(ndo, p - 14 , length + 14);
 			return (1);
 
 		case ETHERTYPE_PPP:
-			if (length) {
-				printf(": ");
-				ppp_print(/*ndo,*/p, length);
-			}
 			return (1);
 
 		case ETHERTYPE_MPCP:
-			mpcp_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_SLOW:
-			slow_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_CFM:
 		case ETHERTYPE_CFM_OLD:
-			cfm_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_LLDP:
-			lldp_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_LOOPBACK:
@@ -588,31 +473,25 @@ int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int 
 
 		case ETHERTYPE_MPLS:
 		case ETHERTYPE_MPLS_MULTI:
-			mpls_print(/*ndo,*/p, length);
 			return (1);
 
 		case ETHERTYPE_TIPC:
-			tipc_print(ndo, p, length, caplen);
 			return (1);
 
 		case ETHERTYPE_MS_NLB_HB:
-			msnlb_print(ndo, p);
 			return (1);
 
 		case ETHERTYPE_GEONET_OLD:
 		case ETHERTYPE_GEONET:
-			geonet_print(ndo, p-14, p, length);
 			return (1);
 
 		case ETHERTYPE_CALM_FAST:
-			calm_fast_print(ndo, p-14, p, length);
 			return (1);
 
 		case ETHERTYPE_LAT:
 		case ETHERTYPE_SCA:
 		case ETHERTYPE_MOPRC:
 		case ETHERTYPE_MOPDL:
-			/* default_print for now */
 #endif
 		default:
 			return (0);

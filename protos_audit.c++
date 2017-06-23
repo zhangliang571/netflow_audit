@@ -647,17 +647,17 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 		case ARPOP_InREQUEST:
 			if(op == ARPOP_REQUEST)
 			{
-				arp_type = ENUM_ARP_REQ;
+				arp_type = ENUM_AUDIT_ARP;
 				strftype = "ARP";
 			}
 			else if(op == ARPOP_RREQUEST)
 			{
-				arp_type = ENUM_RARP_REQ;
+				arp_type = ENUM_AUDIT_RARP;
 				strftype = "RARP";
 			}
 			else if(op == ARPOP_InREQUEST)
 			{
-				arp_type = ENUM_INARP_REQ;
+				arp_type = ENUM_AUDIT_INARP;
 				strftype = "InARP";
 			}
 			//key is dmac:smac:sendmac:sendip:targetip:type
@@ -696,11 +696,11 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 		case ARPOP_RREPLY:
 		case ARPOP_InREPLY:
 			if(op == ARPOP_REPLY)
-				arp_type = ENUM_ARP_REQ;
+				arp_type = ENUM_AUDIT_ARP;
 			else if(op == ARPOP_RREPLY)
-				arp_type = ENUM_RARP_REQ;
+				arp_type = ENUM_AUDIT_RARP;
 			else if(op == ARPOP_InREPLY)
-				arp_type = ENUM_INARP_REQ;
+				arp_type = ENUM_AUDIT_INARP;
 
 			//key is smac:dmac:targetmac:targetip:sendip:type
 			key = lexical_cast<string>(item.smac)+":"+lexical_cast<string>(item.dmac)+":" \
