@@ -16,12 +16,28 @@
 
 using namespace boost;
 
-void _hex_dump(const u_char *p,int len)
+void _hex_dump(const uint8_t *p,int len)
 {
 	int i=0;
 	for(;i<len;i++)
 	{
 		printf("%02x ",p[i]);
+		if((i+1)%16  == 0)
+			cout<<endl;
+	}
+	cout<<endl;
+}
+
+void _char_dump(const uint8_t *p,int len)
+{
+	int i=0;
+	for(;i<len;i++)
+	{
+		if(isprint(p[i]))
+		printf("%-2c ",p[i]);
+		else
+		printf("%-2c",'.');
+
 		if((i+1)%16  == 0)
 			cout<<endl;
 	}
@@ -112,7 +128,7 @@ int ls_dir(string strPath,const char *pfilter,const char *suffix,vector<string> 
 	return v.size();
 }
 
-uint64_t mac_2_int(u_char *mac,int len)
+uint64_t mac_2_int(uint8_t *mac,int len)
 {
 	uint64_t ul = 0;
 	uint64_t ret = 0;

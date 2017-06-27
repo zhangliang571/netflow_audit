@@ -6,9 +6,9 @@
 
 CC:=g++
 INCLUDE:=./
-FLAGS:= -g  -DDEBUG
+FLAGS:= -g 
 DFLAGS:= -DDEBUG
-LIBS:= -lpthread -lpcap -lboost_date_time
+LIBS:= -lpthread -lpcap -lboost_date_time -lboost_regex -L /usr/local/lib
 BIN:=netflow_audit
 SRCS:=$(wildcard *.c++)
 OBJS:=$(patsubst %.c++, %.o, $(SRCS))

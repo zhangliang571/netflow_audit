@@ -13,6 +13,7 @@
 #include "proto_type.h"
 #include "base.h"
 #include "date_time.h"
+#include "tcp_app_audit.h"
 
 using namespace boost;
 extern uint64_t g_total_audit;
@@ -30,6 +31,7 @@ CBaseAudit::~CBaseAudit()
 CTcpAudit::CTcpAudit()
 {
 	sem_init(&_sem,0,1);
+	mount_app_layer();
 }
 CTcpAudit::~CTcpAudit()
 {
@@ -38,13 +40,34 @@ CTcpAudit::~CTcpAudit()
 	_mSessionTimeout.clear();
 	_vSessionTimeout.clear();
 	sem_destroy(&_sem);
+	umount_app_layer();
 }
-int CTcpAudit::audit(const void *hdr, stTblItem &item)
+int CTcpAudit::mount_app_layer(void)
+{
+	CHttpAudit *phttp     = new CHttpAudit;
+	CSshAudit *pssh       = new CSshAudit;
+	CTelnetAudit *ptelnet = new CTelnetAudit;
+	CFtpAudit *pftp       = new CFtpAudit;
+	_aCTcpAppAudit[ENUM_TCP_HTTP]   = phttp;
+	_aCTcpAppAudit[ENUM_TCP_SSH]    = pssh;
+	_aCTcpAppAudit[ENUM_TCP_TELNET] = ptelnet;
+	_aCTcpAppAudit[ENUM_TCP_FTP]    = pftp;
+}
+void CTcpAudit::umount_app_layer(void)
+{
+	for(int i=0;i<ENUM_TCP_TOT;i++)
+		if(_aCTcpAppAudit[i] != NULL)
+		delete _aCTcpAppAudit[i];
+}
+
+int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 {
 	assert(hdr != NULL);
 	int ret = 0;
 	struct tcphdr *tcph = NULL;
 	uint16_t sport,dport;
+	int appdatalen = 0;
+	char *pappdata = NULL;
 	map<string,stTblItem>::iterator itm ;
 	string key;
 	struct _mngTimeout vmng;
@@ -59,16 +82,16 @@ int CTcpAudit::audit(const void *hdr, stTblItem &item)
 		_dir = ENUM_RSP;
 		key = lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport);
 
-		if(_mSessionTimeout.find(key) != _mSessionTimeout.end())
+		if((itm=_mSessionTimeout.find(key)) != _mSessionTimeout.end())
 		{
 			sem_wait(&_sem);////////////////////////////////
-			_mSessionTimeout[key].endtime = item.starttime;
-			_mSessionTimeout[key].sessionstate = ENUM_RST;
-			_mSessionTimeout[key].rsppkts++;
-			_mSessionTimeout[key].rspflow += item.reqflow;
+			itm->second.endtime = item.starttime;
+			itm->second.sessionstate = ENUM_RST;
+			itm->second.rsppkts++;
+			itm->second.rspflow += item.reqflow;
 			_mmSessionEnd.insert(pair<string,stTblItem>(key,_mSessionTimeout[key]));
 
-			_mSessionTimeout.erase(key);
+			_mSessionTimeout.erase(itm);
 			vector<struct _mngTimeout>::iterator itv;
 			for(itv=_vSessionTimeout.begin();itv!=_vSessionTimeout.end();itv++)
 			{
@@ -253,21 +276,64 @@ int CTcpAudit::audit(const void *hdr, stTblItem &item)
 	}
 	else
 	{
+		appdatalen = hdrlen - tcph->doff*4;
+		pappdata = (char*)((char*)hdr + tcph->doff*4);
+
 		key = lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport);
-		if(_mSession.find(key) != _mSession.end())
+		if((itm=_mSession.find(key)) != _mSession.end())
 		{
 			_dir = ENUM_REQ;
-			_mSession[key].reqpkts++;
-			_mSession[key].reqflow += item.reqflow;
+			itm->second.reqpkts++;
+			itm->second.reqflow += item.reqflow;
+
+			if(sport == 22 || dport == 22)
+			{
+				itm->second.apptype = ENUM_TCP_SSH;
+				//ret = _aCTcpAppAudit[ENUM_TCP_SSH]->audit(pappdata,appdatalen,itm->second,_dir);
+			}
+			else if(sport == 23 || dport == 23)
+			{
+				//ret = _aCTcpAppAudit[ENUM_TCP_TELNET]->audit(pappdata,appdatalen,itm->second,_dir);
+				itm->second.apptype = ENUM_TCP_TELNET;
+			}
+			else
+			{
+				//audit tcp app layer
+				for(int i=0;i<ENUM_TCP_TOT;i++)
+				{
+					ret = _aCTcpAppAudit[i]->audit(pappdata,appdatalen,itm->second,_dir);
+					if(ret>=0)
+						break;
+				}
+			}
 		}
 		else
 		{
 			key = lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport);
-			if(_mSession.find(key) != _mSession.end())
+			if((itm=_mSession.find(key)) != _mSession.end())
 			{
 				_dir = ENUM_RSP;
-				_mSession[key].rsppkts++;
-				_mSession[key].rspflow += item.reqflow;
+				itm->second.rsppkts++;
+				itm->second.rspflow += item.reqflow;
+
+				if(sport == 22 || dport == 22)
+				{
+					ret = _aCTcpAppAudit[ENUM_TCP_SSH]->audit(pappdata,appdatalen,itm->second,_dir);
+				}
+				else if(sport == 23 || dport == 23)
+				{
+					ret = _aCTcpAppAudit[ENUM_TCP_TELNET]->audit(pappdata,appdatalen,itm->second,_dir);
+				}
+				else
+				{
+					//audit tcp app layer
+					for(int i=0;i<ENUM_TCP_TOT;i++)
+					{
+						ret = _aCTcpAppAudit[i]->audit(pappdata,appdatalen,itm->second,_dir);
+						if(ret>=0)
+							break;
+					}
+				}
 			}
 		}
 	}
@@ -338,7 +404,7 @@ CUdpAudit::~CUdpAudit()
 {
 	sem_destroy(&_sem);
 }
-int CUdpAudit::audit(const void *hdr, stTblItem &item)
+int CUdpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 {
 	assert(hdr != NULL);
 	int ret = 0;
@@ -420,7 +486,7 @@ CIcmpAudit::~CIcmpAudit()
 {
 	sem_destroy(&_sem);
 }
-int CIcmpAudit::audit(const void *hdr, stTblItem &item)
+int CIcmpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 {
 	assert(hdr != NULL);
 	int ret = 0;
@@ -569,7 +635,7 @@ CArpAudit::~CArpAudit()
 {
 	sem_destroy(&_sem);
 }
-int CArpAudit::audit(const void *hdr, stTblItem &item)
+int CArpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 {
 	assert(hdr != NULL);
 	int ret = 0;

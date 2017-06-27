@@ -3,6 +3,8 @@
 #include <map>
 #include <semaphore.h>
 #include "base.h"
+#include "tcp_app_audit.h"
+
 
 enum E_AUDIT_ETH_TYPE
 {
@@ -27,13 +29,15 @@ public:
 	CBaseAudit();
 	virtual string name(){}
 	virtual ~CBaseAudit();
-	virtual int audit(const void *hdr, stTblItem &item){}
+	virtual int audit(const void *hdr, int hdrlen, stTblItem &item,int dir=0){}
 	virtual int get_mTblItem_fin(multimap<string,stTblItem> &dstm){}
 	virtual int get_mTblItem_fintimeout(map<string,stTblItem> &dstm){}
 	map<string,stTblItem> _mTblItem;
 
 	enum STREAM_DIR _dir;
+
 private:
+
 };
 
 //tcp audit 
@@ -43,9 +47,13 @@ public:
 	CTcpAudit();
 	virtual ~CTcpAudit();
 	string name(){return "CTcpAudit";}
-	int audit(const void *hdr, stTblItem &item);
+	int audit(const void *hdr, int hdrlen, stTblItem &item,int dir=0);
 	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
 	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
+
+private:
+	int mount_app_layer(void) ;
+	void umount_app_layer(void);
 
 private:
 	sem_t _sem;
@@ -56,6 +64,9 @@ private:
 
 	//manage tcp timeout session
 	vector<struct _mngTimeout> _vSessionTimeout;
+
+	//parse tcp app layer
+	CTcpBaseAudit* _aCTcpAppAudit[ENUM_TCP_TOT];
 };
 
 //udp audit
@@ -65,7 +76,7 @@ public:
 	CUdpAudit();
 	virtual ~CUdpAudit();
 	string name(){return "CUdpAudit";}
-	int audit(const void *hdr, stTblItem &item);
+	int audit(const void *hdr, int hdrlen, stTblItem &item,int dir=0);
 	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
 	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
 private:
@@ -79,7 +90,7 @@ public:
 	CIcmpAudit();
 	virtual ~CIcmpAudit();
 	string name(){return "CIcmpAudit";}
-	int audit(const void *hdr, stTblItem &item);
+	int audit(const void *hdr, int hdrlen, stTblItem &item,int dir=0);
 	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
 	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
 private:
@@ -93,7 +104,7 @@ public:
 	CArpAudit();
 	virtual ~CArpAudit();
 	string name(){return "CArpAudit";}
-	int audit(const void *hdr, stTblItem &item);
+	int audit(const void *hdr, int hdrlen, stTblItem &item,int dir=0);
 	int get_mTblItem_fin(multimap<string,stTblItem> &dstm);
 	int get_mTblItem_fintimeout(map<string,stTblItem> &dstm);
 private:

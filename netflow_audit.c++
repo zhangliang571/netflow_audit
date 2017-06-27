@@ -326,6 +326,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 	uint32_t isip,idip;
 	uint16_t sport,dport;
 	uint8_t icmp_type;
+	int hdrlen = 0;
 	string key;
 	stTblItem item;
 	map<string,stTblItem>::iterator itm;
@@ -342,26 +343,28 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 		_tmpitem.sip = (iph->saddr);	
 		_tmpitem.dip = (iph->daddr);	
 	
+		hdrlen = length - iph->ihl*4;
+
 		switch(iph->protocol)
 		{
 			case IPPROTO_TCP:
 				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
 				pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_TCP];
 				if(pBaseAudit)
-				ret = pBaseAudit->audit(tcph, _tmpitem);
+				ret = pBaseAudit->audit(tcph,hdrlen,_tmpitem);
 
 				break;
 			case IPPROTO_UDP:
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
 				pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_UDP];
 				if(pBaseAudit)
-				ret = pBaseAudit->audit(udph, _tmpitem);
+				ret = pBaseAudit->audit(udph,hdrlen,_tmpitem);
 				break;
 			case IPPROTO_ICMP:
 				icmph = (struct icmphdr*)((u_char*)iph + iph->ihl*4);
 				pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_ICMP];
 				if(pBaseAudit)
-				ret = pBaseAudit->audit(icmph, _tmpitem);
+				ret = pBaseAudit->audit(icmph,hdrlen,_tmpitem);
 				break;
 			case IPPROTO_IGMP:
 			case IPPROTO_GRE:
@@ -412,7 +415,7 @@ int CNetflowAudit::arp_layer_parse(const u_char* p, u_int length)
 	CBaseAudit* pBaseAudit = NULL;
 	pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_ARP];
 	if(pBaseAudit)
-		ret = pBaseAudit->audit(p, _tmpitem);
+		ret = pBaseAudit->audit(p,length, _tmpitem);
 	return ret;
 }
 

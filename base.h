@@ -85,17 +85,17 @@ struct _mngTimeout
 
 struct framehdr
 {
-	u_char dstmac[6];
-	u_char srcmac[6];
+	uint8_t dstmac[6];
+	uint8_t srcmac[6];
 	uint16_t ftype;
 };
 
 #pragma pack(2)
 struct arpdata
 {
-	u_char sendmac[6];
+	uint8_t sendmac[6];
 	uint32_t sendip;
-	u_char targetmac[6];
+	uint8_t targetmac[6];
 	uint32_t targetip;
 };
 #pragma pack()
@@ -103,12 +103,13 @@ struct arpdata
 
 
 
-void _hex_dump(const u_char *p,int len);
+void _hex_dump(const uint8_t *p,int len);
+void _char_dump(const uint8_t *p,int len);
 string inaddr_2_ip(uint32_t addr);
 uint64_t get_audit_id(uint64_t count);
 int get_save_file_name(string strPath,string strTbl,string &strTmpFile,string &strFile);
 int ls_dir(string strPath,const char *pfilter,const char *suffix,vector<string> &v);
-uint64_t mac_2_int(u_char* mac,int len);
+uint64_t mac_2_int(uint8_t* mac,int len);
 void zero_stTblItem(stTblItem &item);
 long recurse_get_timeout_session(vector<struct _mngTimeout> &v, int low, int height, string &strkey);
 
