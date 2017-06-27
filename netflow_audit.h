@@ -63,6 +63,7 @@ private:
 
 	//key is enum E_AUDIT_FTYPE
 	map<int,CBaseAudit*> _mCBaseAudit;
+	CBaseAudit* _aCBaseAudit[ENUM_AUDIT_ETHTYPE_TOT];
 
 
 };

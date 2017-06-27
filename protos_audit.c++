@@ -1,7 +1,3 @@
-
-#include <iostream>
-#include <string>
-#include <vector>
 #include <boost/lexical_cast.hpp>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -109,7 +105,7 @@ int CTcpAudit::audit(const void *hdr, stTblItem &item)
 			item.auditid = get_audit_id(g_total_audit);
 			item.starttime = item.starttime;
 			item.endtime = "";
-			item.ftype = ENUM_AUDIT_TCP;
+			item.ethtype = ENUM_AUDIT_ETHTYPE_TCP;
 			item.ftypename = "TCP";
 			item.sport = sport;
 			item.dport = dport;
@@ -137,7 +133,7 @@ int CTcpAudit::audit(const void *hdr, stTblItem &item)
 				item.auditid = get_audit_id(g_total_audit);
 				item.starttime = item.starttime;
 				item.endtime = "";
-				item.ftype = ENUM_AUDIT_TCP;
+				item.ethtype = ENUM_AUDIT_ETHTYPE_TCP;
 				item.ftypename = "TCP";
 				item.sport = sport;
 				item.dport = dport;
@@ -370,7 +366,7 @@ int CUdpAudit::audit(const void *hdr, stTblItem &item)
 			item.auditid = get_audit_id(g_total_audit);
 			item.starttime = item.starttime;
 			item.endtime = "";
-			item.ftype = ENUM_AUDIT_UDP;
+			item.ethtype = ENUM_AUDIT_ETHTYPE_UDP;
 			item.ftypename = "UDP";
 			item.sport = sport;
 			item.dport = dport;
@@ -463,7 +459,7 @@ int CIcmpAudit::audit(const void *hdr, stTblItem &item)
 				item.auditid = get_audit_id(g_total_audit);
 				item.starttime = item.starttime;
 				item.endtime = "";
-				item.ftype = ENUM_AUDIT_ICMP;
+				item.ethtype = ENUM_AUDIT_ETHTYPE_ICMP;
 				item.ftypename = "ICMP";
 				//icmp no port, this item as icmp pkt count
 				item.reqpkts = 1;
@@ -647,17 +643,17 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 		case ARPOP_InREQUEST:
 			if(op == ARPOP_REQUEST)
 			{
-				arp_type = ENUM_AUDIT_ARP;
+				arp_type = ENUM_AUDIT_ARPTYPE_ARP;
 				strftype = "ARP";
 			}
 			else if(op == ARPOP_RREQUEST)
 			{
-				arp_type = ENUM_AUDIT_RARP;
+				arp_type = ENUM_AUDIT_ARPTYPE_RARP;
 				strftype = "RARP";
 			}
 			else if(op == ARPOP_InREQUEST)
 			{
-				arp_type = ENUM_AUDIT_INARP;
+				arp_type = ENUM_AUDIT_ARPTYPE_INARP;
 				strftype = "InARP";
 			}
 			//key is dmac:smac:sendmac:sendip:targetip:type
@@ -671,7 +667,8 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 				item.auditid = get_audit_id(g_total_audit);
 				item.starttime = item.starttime;
 				item.endtime = "";
-				item.ftype = arp_type;
+				item.ethtype = ENUM_AUDIT_ETHTYPE_ARP;
+				item.apptype = arp_type;
 				item.ftypename = strftype;
 				item.sip = isendip;
 				item.dip = itargetip;
@@ -696,11 +693,11 @@ int CArpAudit::audit(const void *hdr, stTblItem &item)
 		case ARPOP_RREPLY:
 		case ARPOP_InREPLY:
 			if(op == ARPOP_REPLY)
-				arp_type = ENUM_AUDIT_ARP;
+				arp_type = ENUM_AUDIT_ARPTYPE_ARP;
 			else if(op == ARPOP_RREPLY)
-				arp_type = ENUM_AUDIT_RARP;
+				arp_type = ENUM_AUDIT_ARPTYPE_RARP;
 			else if(op == ARPOP_InREPLY)
-				arp_type = ENUM_AUDIT_INARP;
+				arp_type = ENUM_AUDIT_ARPTYPE_INARP;
 
 			//key is smac:dmac:targetmac:targetip:sendip:type
 			key = lexical_cast<string>(item.smac)+":"+lexical_cast<string>(item.dmac)+":" \

@@ -119,17 +119,17 @@ int CNetflowAudit::mount_baseaudit()
 	CUdpAudit *_cUdpAudit   = new CUdpAudit;
 	CIcmpAudit *_cIcmpAudit = new CIcmpAudit;
 	CArpAudit *_cArpAudit   = new CArpAudit;
-	_mCBaseAudit[ENUM_AUDIT_TCP]  = _cTcpAudit;
-	_mCBaseAudit[ENUM_AUDIT_UDP]  = _cUdpAudit;
-	_mCBaseAudit[ENUM_AUDIT_ICMP] = _cIcmpAudit;
-	_mCBaseAudit[ENUM_AUDIT_ARP]  = _cArpAudit;
-	return _mCBaseAudit.size();
+	_aCBaseAudit[ENUM_AUDIT_ETHTYPE_TCP]  = _cTcpAudit;
+	_aCBaseAudit[ENUM_AUDIT_ETHTYPE_UDP]  = _cUdpAudit;
+	_aCBaseAudit[ENUM_AUDIT_ETHTYPE_ICMP] = _cIcmpAudit;
+	_aCBaseAudit[ENUM_AUDIT_ETHTYPE_ARP]  = _cArpAudit;
+	return ENUM_AUDIT_ETHTYPE_TOT;
 }
 int CNetflowAudit::umount_baseaudit()
 {
-	map<int,CBaseAudit*>::iterator itm;
-	for(itm=_mCBaseAudit.begin();itm!=_mCBaseAudit.end();itm++)
-		delete itm->second;
+	for(int i=0;i<ENUM_AUDIT_ETHTYPE_TOT;i++)
+		if(_aCBaseAudit[i] != NULL)
+		delete _aCBaseAudit[i];
 }
 void CNetflowAudit::_zero_stTblItem()
 {
@@ -213,13 +213,13 @@ int CNetflowAudit::load_over_session_2_file(string strtmpfile)
 	int ret = 0;
 	ofstream of;
 	multimap<string,stTblItem> mdata;
-	map<int,CBaseAudit*>::iterator itm;
 
-	for(itm=_mCBaseAudit.begin();itm!=_mCBaseAudit.end();itm++)
+	for(int i=0;i<ENUM_AUDIT_ETHTYPE_TOT;i++)
 	{
 		int n = 0;
 		mdata.clear();
-		n = itm->second->get_mTblItem_fin(mdata);
+		if(_aCBaseAudit[i] != NULL)
+		n = _aCBaseAudit[i]->get_mTblItem_fin(mdata);
 		if(n >0)
 		{
 			of.open(strtmpfile.c_str(), ios::app);	
@@ -236,13 +236,13 @@ int CNetflowAudit::load_mTimeout_2_file(string strtmpfile)
 	int ret = 0;
 	ofstream of;
 	map<string,stTblItem> mdata;
-	map<int,CBaseAudit*>::iterator itm;
 
-	for(itm=_mCBaseAudit.begin();itm!=_mCBaseAudit.end();itm++)
+	for(int i=0;i<ENUM_AUDIT_ETHTYPE_TOT;i++)
 	{
 		int n = 0;
 		mdata.clear();
-		n = itm->second->get_mTblItem_fintimeout(mdata);
+		if(_aCBaseAudit[i] != NULL)
+		n = _aCBaseAudit[i]->get_mTblItem_fintimeout(mdata);
 		if(n > 0)
 		{
 			of.open(strtmpfile.c_str(), ios::app);	
@@ -268,7 +268,8 @@ int CNetflowAudit::load_tblitem_2_ofstream(ofstream& of,mapT &m)
 			<<"\""<<itm->second.auditid<<"\","
 			<<"\""<<itm->second.starttime<<"\","
 			<<"\""<<itm->second.endtime<<"\","
-			<<"\""<<itm->second.ftype<<"\","
+			<<"\""<<itm->second.ethtype<<"\","
+			<<"\""<<itm->second.apptype<<"\","
 			<<"\""<<itm->second.ftypename<<"\","
 			<<"\""<<itm->second.dmac<<"\","
 			<<"\""<<itm->second.smac<<"\","
@@ -321,6 +322,7 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 	struct tcphdr *tcph = NULL;
 	struct udphdr *udph = NULL;
 	struct icmphdr *icmph= NULL;
+	CBaseAudit* pBaseAudit = NULL;
 	uint32_t isip,idip;
 	uint16_t sport,dport;
 	uint8_t icmp_type;
@@ -344,19 +346,22 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 		{
 			case IPPROTO_TCP:
 				tcph = (struct tcphdr*)((u_char*)iph + iph->ihl*4);
-				if(_mCBaseAudit[ENUM_AUDIT_TCP])
-				ret = _mCBaseAudit[ENUM_AUDIT_TCP]->audit(tcph, _tmpitem);
+				pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_TCP];
+				if(pBaseAudit)
+				ret = pBaseAudit->audit(tcph, _tmpitem);
 
 				break;
 			case IPPROTO_UDP:
 				udph = (struct udphdr*)((u_char*)iph + iph->ihl*4);
-				if(_mCBaseAudit[ENUM_AUDIT_UDP])
-				ret = _mCBaseAudit[ENUM_AUDIT_UDP]->audit(udph, _tmpitem);
+				pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_UDP];
+				if(pBaseAudit)
+				ret = pBaseAudit->audit(udph, _tmpitem);
 				break;
 			case IPPROTO_ICMP:
 				icmph = (struct icmphdr*)((u_char*)iph + iph->ihl*4);
-				if(_mCBaseAudit[ENUM_AUDIT_ICMP])
-				ret = _mCBaseAudit[ENUM_AUDIT_ICMP]->audit(icmph, _tmpitem);
+				pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_ICMP];
+				if(pBaseAudit)
+				ret = pBaseAudit->audit(icmph, _tmpitem);
 				break;
 			case IPPROTO_IGMP:
 			case IPPROTO_GRE:
@@ -404,8 +409,10 @@ int CNetflowAudit::ip_layer_parse(const u_char* p, u_int length)
 int CNetflowAudit::arp_layer_parse(const u_char* p, u_int length)
 {
 	int ret = 0;
-	if(_mCBaseAudit[ENUM_AUDIT_ARP])
-	ret = _mCBaseAudit[ENUM_AUDIT_ARP]->audit(p, _tmpitem);
+	CBaseAudit* pBaseAudit = NULL;
+	pBaseAudit = _aCBaseAudit[ENUM_AUDIT_ETHTYPE_ARP];
+	if(pBaseAudit)
+		ret = pBaseAudit->audit(p, _tmpitem);
 	return ret;
 }
 

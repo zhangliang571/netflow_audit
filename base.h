@@ -59,7 +59,8 @@ typedef struct _stTblItem
 	uint64_t auditid;
 	string starttime;
 	string endtime;
-	int ftype;
+	int ethtype;
+	int apptype;
 	string ftypename;
 	uint64_t dmac;
 	uint64_t smac;

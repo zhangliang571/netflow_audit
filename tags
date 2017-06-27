@@ -24,11 +24,14 @@ CUdpAudit	protos_audit.h	/^class CUdpAudit:public CBaseAudit$/;"	c
 DATE_FORMAT	base.h	15;"	d
 DFLAGS	makefile	/^DFLAGS:= -DDEBUG$/;"	m
 ENUM_ARP_REQ	base.h	/^	ENUM_ARP_REQ, \/\/13$/;"	e	enum:E_SESSION_STATE
-ENUM_AUDIT_ARP	protos_audit.h	/^	ENUM_AUDIT_ARP,$/;"	e	enum:E_AUDIT_FTYPE
-ENUM_AUDIT_ICMP	protos_audit.h	/^	ENUM_AUDIT_ICMP,$/;"	e	enum:E_AUDIT_FTYPE
-ENUM_AUDIT_TCP	protos_audit.h	/^	ENUM_AUDIT_TCP = 0,$/;"	e	enum:E_AUDIT_FTYPE
-ENUM_AUDIT_TOT	protos_audit.h	/^	ENUM_AUDIT_TOT,$/;"	e	enum:E_AUDIT_FTYPE
-ENUM_AUDIT_UDP	protos_audit.h	/^	ENUM_AUDIT_UDP,$/;"	e	enum:E_AUDIT_FTYPE
+ENUM_AUDIT_ARPTYPE_ARP	protos_audit.h	/^	ENUM_AUDIT_ARPTYPE_ARP = 0,$/;"	e	enum:E_AUDIT_ARP_TYPE
+ENUM_AUDIT_ARPTYPE_INARP	protos_audit.h	/^	ENUM_AUDIT_ARPTYPE_INARP,$/;"	e	enum:E_AUDIT_ARP_TYPE
+ENUM_AUDIT_ARPTYPE_RARP	protos_audit.h	/^	ENUM_AUDIT_ARPTYPE_RARP,$/;"	e	enum:E_AUDIT_ARP_TYPE
+ENUM_AUDIT_ETHTYPE_ARP	protos_audit.h	/^	ENUM_AUDIT_ETHTYPE_ARP,$/;"	e	enum:E_AUDIT_ETH_TYPE
+ENUM_AUDIT_ETHTYPE_ICMP	protos_audit.h	/^	ENUM_AUDIT_ETHTYPE_ICMP,$/;"	e	enum:E_AUDIT_ETH_TYPE
+ENUM_AUDIT_ETHTYPE_TCP	protos_audit.h	/^	ENUM_AUDIT_ETHTYPE_TCP = 0,$/;"	e	enum:E_AUDIT_ETH_TYPE
+ENUM_AUDIT_ETHTYPE_TOT	protos_audit.h	/^	ENUM_AUDIT_ETHTYPE_TOT,$/;"	e	enum:E_AUDIT_ETH_TYPE
+ENUM_AUDIT_ETHTYPE_UDP	protos_audit.h	/^	ENUM_AUDIT_ETHTYPE_UDP,$/;"	e	enum:E_AUDIT_ETH_TYPE
 ENUM_CLIENT_CLOSE_HALF	base.h	/^	ENUM_CLIENT_CLOSE_HALF,$/;"	e	enum:E_SESSION_STATE
 ENUM_CLOSE_SUCCESS	base.h	/^	ENUM_CLOSE_SUCCESS,$/;"	e	enum:E_SESSION_STATE
 ENUM_CONNECT_REQ	base.h	/^	ENUM_CONNECT_REQ = 1,$/;"	e	enum:E_SESSION_STATE
@@ -45,6 +48,11 @@ ENUM_RSP	base.h	/^	ENUM_RSP,$/;"	e	enum:STREAM_DIR
 ENUM_RST	base.h	/^	ENUM_RST,$/;"	e	enum:E_SESSION_STATE
 ENUM_SERVER_CLOSE_HALF	base.h	/^	ENUM_SERVER_CLOSE_HALF,$/;"	e	enum:E_SESSION_STATE
 ENUM_STATE_TOTAL	base.h	/^	ENUM_STATE_TOTAL,$/;"	e	enum:E_SESSION_STATE
+ENUM_TCP_FTP	tcp_app_audit.h	/^	ENUM_TCP_FTP,$/;"	e	enum:E_TCP_APP_TYPE
+ENUM_TCP_HTTP	tcp_app_audit.h	/^	ENUM_TCP_HTTP,$/;"	e	enum:E_TCP_APP_TYPE
+ENUM_TCP_SSH	tcp_app_audit.h	/^	ENUM_TCP_SSH = 0,$/;"	e	enum:E_TCP_APP_TYPE
+ENUM_TCP_TELNET	tcp_app_audit.h	/^	ENUM_TCP_TELNET,$/;"	e	enum:E_TCP_APP_TYPE
+ENUM_TCP_TOT	tcp_app_audit.h	/^	ENUM_TCP_TOT,$/;"	e	enum:E_TCP_APP_TYPE
 ENUM_UDP	base.h	/^	ENUM_UDP, \/\/7$/;"	e	enum:E_SESSION_STATE
 ETHERTYPE_8021Q	proto_type.h	29;"	d
 ETHERTYPE_8021Q9100	proto_type.h	30;"	d
@@ -98,8 +106,10 @@ ETHERTYPE_VEXP	proto_type.h	24;"	d
 ETHERTYPE_VMAN	proto_type.h	50;"	d
 ETHERTYPE_VPROD	proto_type.h	25;"	d
 ETHER_HDRLEN	proto_type.h	4;"	d
-E_AUDIT_FTYPE	protos_audit.h	/^enum E_AUDIT_FTYPE$/;"	g
+E_AUDIT_ARP_TYPE	protos_audit.h	/^enum E_AUDIT_ARP_TYPE$/;"	g
+E_AUDIT_ETH_TYPE	protos_audit.h	/^enum E_AUDIT_ETH_TYPE$/;"	g
 E_SESSION_STATE	base.h	/^enum E_SESSION_STATE$/;"	g
+E_TCP_APP_TYPE	tcp_app_audit.h	/^enum E_TCP_APP_TYPE$/;"	g
 FLAGS	makefile	/^FLAGS:= -g  -DDEBUG$/;"	m
 HAVE_PF_RING	netflow_audit.c++	21;"	d	file:
 INCLUDE	makefile	/^INCLUDE:=.\/$/;"	m
@@ -120,6 +130,8 @@ __DATE_TIME_H__	date_time.h	2;"	d
 __ETHERTYPE_H__	proto_type.h	2;"	d
 __NETFLOW_AUDIT_H__	netflow_audit.h	2;"	d
 __PROTOS_AUDIT_H__	protos_audit.h	2;"	d
+__TCP_APP_AUDIT_H__	tcp_app_audit.h	2;"	d
+_aCBaseAudit	netflow_audit.h	/^	CBaseAudit* _aCBaseAudit[ENUM_AUDIT_ETHTYPE_TOT];$/;"	m	class:CNetflowAudit
 _dir	protos_audit.h	/^	enum STREAM_DIR _dir;$/;"	m	class:CBaseAudit	typeref:enum:CBaseAudit::STREAM_DIR
 _hex_dump	base.c++	/^void _hex_dump(const u_char *p,int len)$/;"	f
 _mCBaseAudit	netflow_audit.h	/^	map<int,CBaseAudit*> _mCBaseAudit;$/;"	m	class:CNetflowAudit
@@ -139,6 +151,7 @@ _timeoutList	netflow_audit.h	/^typedef struct _timeoutList$/;"	s
 _tmpitem	netflow_audit.h	/^	stTblItem _tmpitem;$/;"	m	class:CNetflowAudit
 _vSessionTimeout	protos_audit.h	/^	vector<struct _mngTimeout> _vSessionTimeout;$/;"	m	class:CTcpAudit
 _zero_stTblItem	netflow_audit.c++	/^void CNetflowAudit::_zero_stTblItem()$/;"	f	class:CNetflowAudit
+apptype	base.h	/^	int apptype;$/;"	m	struct:_stTblItem
 arp_layer_parse	netflow_audit.c++	/^int CNetflowAudit::arp_layer_parse(const u_char* p, u_int length)$/;"	f	class:CNetflowAudit
 arpdata	base.h	/^struct arpdata$/;"	s
 audit	protos_audit.c++	/^int CArpAudit::audit(const void *hdr, stTblItem &item)$/;"	f	class:CArpAudit
@@ -148,7 +161,7 @@ audit	protos_audit.c++	/^int CUdpAudit::audit(const void *hdr, stTblItem &item)$
 audit	protos_audit.h	/^	virtual int audit(const void *hdr, stTblItem &item){}$/;"	f	class:CBaseAudit
 auditext1	base.h	/^	string auditext1;$/;"	m	struct:_stTblItem
 auditext2	base.h	/^	string auditext2;$/;"	m	struct:_stTblItem
-auditid	base.h	/^	u_int auditid;$/;"	m	struct:_stTblItem
+auditid	base.h	/^	uint64_t auditid;$/;"	m	struct:_stTblItem
 before_current_time	date_time.c++	/^string CDateTime::before_current_time(int sec)$/;"	f	class:CDateTime
 close_pcap	netflow_audit.c++	/^void CNetflowAudit::close_pcap(pcap_t *pd)$/;"	f	class:CNetflowAudit
 coll_pcap_handle	netflow_audit.c++	/^void coll_pcap_handle(u_char* arg, const struct pcap_pkthdr* pkthdr, const u_char* pkt)$/;"	f
@@ -164,8 +177,8 @@ echo_msession	netflow_audit.c++	/^void CNetflowAudit::echo_msession()$/;"	f	clas
 echo_time	date_time.c++	/^void CDateTime::echo_time()$/;"	f	class:CDateTime
 endtime	base.h	/^	string endtime;$/;"	m	struct:_stTblItem
 ether_layer_parse	netflow_audit.c++	/^int CNetflowAudit::ether_layer_parse(u_short ether_type, const u_char* p, u_int length)$/;"	f	class:CNetflowAudit
+ethtype	base.h	/^	int ethtype;$/;"	m	struct:_stTblItem
 framehdr	base.h	/^struct framehdr$/;"	s
-ftype	base.h	/^	int ftype;$/;"	m	struct:_stTblItem
 ftype	base.h	/^	uint16_t ftype;$/;"	m	struct:framehdr
 ftypename	base.h	/^	string ftypename;$/;"	m	struct:_stTblItem
 g_NetflowAudit	netflow_audit.c++	/^CNetflowAudit *g_NetflowAudit; $/;"	v
