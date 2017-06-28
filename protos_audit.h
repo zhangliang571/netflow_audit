@@ -54,6 +54,7 @@ public:
 private:
 	int mount_app_layer(void) ;
 	void umount_app_layer(void);
+	int erase_session(string strkey);
 
 private:
 	sem_t _sem;

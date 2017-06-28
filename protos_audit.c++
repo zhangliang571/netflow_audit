@@ -60,6 +60,28 @@ void CTcpAudit::umount_app_layer(void)
 		delete _aCTcpAppAudit[i];
 }
 
+//strkey is _mSession key
+int CTcpAudit::erase_session(string strkey)
+{
+	int ret = -1;
+	uint64_t id;
+
+	map<string,stTblItem>::iterator itm;
+	if((itm=_mSession.find(strkey)) != _mSession.end())
+	{
+		id = itm->second.auditid;
+		for(int i=0;i<ENUM_TCP_TOT;i++)
+		{
+			ret = _aCTcpAppAudit[i]->erase_auditid(id);
+			if(ret==0)
+				break;
+		}
+
+		_mSession.erase(itm);
+	}
+	return ret;
+}
+
 int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 {
 	assert(hdr != NULL);
@@ -112,7 +134,7 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 			sem_wait(&_sem);////////////////////////////////
 			_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
 			sem_post(&_sem);////////////////////////////////
-			_mSession.erase(itm);
+			erase_session(key);
 		}
 
 	}	
@@ -209,7 +231,7 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 				itm->second.reqflow += item.reqflow;
 				itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
 				_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
-				_mSession.erase(itm);
+				erase_session(key);
 				_mSessionTimeout.erase(key);
 
 				vector<struct _mngTimeout>::iterator itv;
@@ -229,7 +251,7 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 				itm->second.reqflow += item.reqflow;
 				itm->second.sessionstate  = ENUM_CLIENT_CLOSE_HALF;		
 				_mSessionTimeout[key] = itm->second;
-				_mSession.erase(itm);
+				erase_session(key);
 			}
 
 		}
@@ -246,7 +268,7 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 					itm->second.rspflow += item.reqflow;
 					itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
 					_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
-					_mSession.erase(itm);
+					erase_session(key);
 					_mSessionTimeout.erase(key);
 
 					vector<struct _mngTimeout>::iterator itv;
@@ -267,7 +289,7 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 					itm->second.rspflow += item.reqflow;
 					itm->second.sessionstate  = ENUM_SERVER_CLOSE_HALF;		
 					_mSessionTimeout[key] = itm->second;
-					_mSession.erase(itm);
+					erase_session(key);
 				}
 			}
 
@@ -279,6 +301,10 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 		appdatalen = hdrlen - tcph->doff*4;
 		pappdata = (char*)((char*)hdr + tcph->doff*4);
 
+
+		if(appdatalen > 0)
+		{
+
 		key = lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport);
 		if((itm=_mSession.find(key)) != _mSession.end())
 		{
@@ -288,13 +314,13 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 
 			if(sport == 22 || dport == 22)
 			{
-				itm->second.apptype = ENUM_TCP_SSH;
-				//ret = _aCTcpAppAudit[ENUM_TCP_SSH]->audit(pappdata,appdatalen,itm->second,_dir);
+				//itm->second.apptype = ENUM_TCP_SSH;
+				ret = _aCTcpAppAudit[ENUM_TCP_SSH]->audit(pappdata,appdatalen,itm->second,_dir);
 			}
 			else if(sport == 23 || dport == 23)
 			{
-				//ret = _aCTcpAppAudit[ENUM_TCP_TELNET]->audit(pappdata,appdatalen,itm->second,_dir);
-				itm->second.apptype = ENUM_TCP_TELNET;
+				//itm->second.apptype = ENUM_TCP_TELNET;
+				ret = _aCTcpAppAudit[ENUM_TCP_TELNET]->audit(pappdata,appdatalen,itm->second,_dir);
 			}
 			else
 			{
@@ -318,10 +344,12 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 
 				if(sport == 22 || dport == 22)
 				{
+					//itm->second.apptype = ENUM_TCP_SSH;
 					ret = _aCTcpAppAudit[ENUM_TCP_SSH]->audit(pappdata,appdatalen,itm->second,_dir);
 				}
 				else if(sport == 23 || dport == 23)
 				{
+					//itm->second.apptype = ENUM_TCP_TELNET;
 					ret = _aCTcpAppAudit[ENUM_TCP_TELNET]->audit(pappdata,appdatalen,itm->second,_dir);
 				}
 				else
@@ -335,6 +363,8 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 					}
 				}
 			}
+		}
+
 		}
 	}
 
