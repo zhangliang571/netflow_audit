@@ -17,7 +17,7 @@ using namespace std;
 
 //net.ipv4.tcp_keepalive_time
 //#define TCP_TIMEOUT 7200
-#define TCP_TIMEOUT 120
+#define TCP_TIMEOUT 60
 #define NO_CONNECT_TIMEOUT 120
 
 

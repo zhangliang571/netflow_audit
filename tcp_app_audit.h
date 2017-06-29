@@ -55,6 +55,17 @@ typedef enum _TELNET_LOGIN_STATUS
 	ENUM_TELNET_LOGIN_SESSION,
 }TELNET_LOGIN_STATUS;
 
+typedef enum _FTP_LOGIN_STATUS
+{
+	ENUM_FTP_LOGIN_NULL = 0,
+	ENUM_FTP_LOGIN_SERVICE_READY,
+	ENUM_FTP_LOGIN_USER,
+	ENUM_FTP_LOGIN_USEROK,
+	ENUM_FTP_LOGIN_PASSWD,
+	ENUM_FTP_LOGIN_LOGININ,
+	ENUM_FTP_LOGIN_SESSION,
+
+}FTP_LOGIN_STATUS;
 
 
 struct key_exchange_hdr
@@ -84,7 +95,7 @@ public:
 	int erase_auditid(uint64_t id);
 private:
 	bool regex_match_verex_login(char *str,int strlen);
-	int parse_login(uint64_t id,char *str,int strlen);
+	int parse_login(uint64_t id,char *str,int strlen,int dir);
 private:
 
 	int _dir;
@@ -109,7 +120,7 @@ private:
 	bool regex_match_login(char *str,int strlen);
 	bool regex_match_passwd(char *str,int strlen);
 	bool match_login_rn(char *str,int strlen);
-	int parse_login(uint64_t id,char *str,int strlen);
+	int parse_login(uint64_t id,char *str,int strlen,int dir);
 private:
 	int _dir;
 	#define REG_LOGIN  (".*(( login: .*)|( User: .*)|( Username: .*))")
@@ -128,6 +139,16 @@ public:
 	int audit(const void *hdr,int hdrlen,stTblItem &item,int dir);
 	int erase_auditid(uint64_t id);
 private:
+	bool regex_match_strreg(char *str,string streg, int strlen);
+	int parse_login(uint64_t id,char *str,int strlen,int dir);
+private:
+	#define REG_LOGIN_READY ("(220 ).*( FTP server ).*(ready.\r\n).*")
+	#define REG_LOGIN_USER   ("(USER ).*(\r\n).*")
+	#define REG_LOGIN_USEROK ("(331 ).*(\r\n).*")
+	#define REG_LOGIN_PASSWD ("(PASS ).*(\r\n).*")
+	#define REG_LOGIN_LOGININ ("(230 ).*(\r\n).*")
+	//key is audit
+	map<uint64_t,int> _mFtpSes;
 };
 
 

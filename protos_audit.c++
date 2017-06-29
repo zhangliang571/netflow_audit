@@ -138,7 +138,7 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 		}
 
 	}	
-	//req 3 handles
+	//req 3 handshakes
 	else if(tcph->syn == 1 && tcph->ack==0 && tcph->ece==0&&tcph->cwr==0)
 	{
 		_dir = ENUM_REQ;
@@ -198,11 +198,11 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 		}
 		sem_post(&_sem);////////////////////////////////
 	}
-	//rsp 3 handles
+	//rsp 3 handshakes
 	else if(tcph->syn == 1 && tcph->ack==1)
 	{
 		_dir = ENUM_RSP;
-		cout<<"rsp 3 handles ..............sip:"<<item.dip<<" sport:"<<dport<<" dip:"<<item.sip<<" dport:"<<sport<<endl;
+		cout<<"rsp 3 handshakes ..............sip:"<<item.dip<<" sport:"<<dport<<" dip:"<<item.sip<<" dport:"<<sport<<endl;
 		key = lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport);
 		sem_wait(&_sem);////////////////////////////////
 		if((itm=_mSessionTimeout.find(key)) != _mSessionTimeout.end())
@@ -312,7 +312,17 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 			itm->second.reqpkts++;
 			itm->second.reqflow += item.reqflow;
 
-			if(sport == 22 || dport == 22)
+			if(sport == 20 || dport == 20)
+			{
+				itm->second.apptype = ENUM_TCP_FTP;
+				//ret = _aCTcpAppAudit[ENUM_TCP_FTP]->audit(pappdata,appdatalen,itm->second,_dir);
+			}
+			else if(sport == 21 || dport == 21)
+			{
+				//itm->second.apptype = ENUM_TCP_FTP;
+				ret = _aCTcpAppAudit[ENUM_TCP_FTP]->audit(pappdata,appdatalen,itm->second,_dir);
+			}
+			else if(sport == 22 || dport == 22)
 			{
 				//itm->second.apptype = ENUM_TCP_SSH;
 				ret = _aCTcpAppAudit[ENUM_TCP_SSH]->audit(pappdata,appdatalen,itm->second,_dir);
@@ -342,7 +352,17 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 				itm->second.rsppkts++;
 				itm->second.rspflow += item.reqflow;
 
-				if(sport == 22 || dport == 22)
+				if(sport == 20 || dport == 20)
+				{
+					itm->second.apptype = ENUM_TCP_FTP;
+					//ret = _aCTcpAppAudit[ENUM_TCP_FTP]->audit(pappdata,appdatalen,itm->second,_dir);
+				}
+				else if(sport == 21 || dport == 21)
+				{
+					//itm->second.apptype = ENUM_TCP_FTP;
+					ret = _aCTcpAppAudit[ENUM_TCP_FTP]->audit(pappdata,appdatalen,itm->second,_dir);
+				}
+				else if(sport == 22 || dport == 22)
 				{
 					//itm->second.apptype = ENUM_TCP_SSH;
 					ret = _aCTcpAppAudit[ENUM_TCP_SSH]->audit(pappdata,appdatalen,itm->second,_dir);

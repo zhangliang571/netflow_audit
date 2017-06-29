@@ -15,7 +15,7 @@ CHttpAudit::~CHttpAudit()
 int CHttpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 {
 	int ret = -1;
-	cout<<"CHttpAudit::audit()\n";
+	//cout<<"CHttpAudit::audit()\n";
 	return ret;
 }
 //return: 0 -- find this id; else no 
@@ -47,7 +47,7 @@ int CSshAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 	cout<<"CSshAudit::audit()\n";
 	_hex_dump(p,hdrlen);
 	#endif
-	ret = parse_login(item.auditid,p,hdrlen);
+	ret = parse_login(item.auditid,p,hdrlen,dir);
 	if(ret == 1)
 	{
 		item.apptype = ENUM_TCP_SSH;
@@ -87,7 +87,7 @@ bool CSshAudit::regex_match_verex_login(char *str,int strlen)
 	return ret;
 }
 /*
- * ssh login handle:
+ * ssh login handshake:
  * 	client ver_exchange ------> server;
  * 	server ver_exchange ------> client;
  * 	client key_exchange_init ------> server;
@@ -96,9 +96,9 @@ bool CSshAudit::regex_match_verex_login(char *str,int strlen)
  * 	server DHkey_exchange_init; New_Keys ------> client;
  * 	client New_Keys     -------> server
  *
- * return: -1 -- no match ssh login; 1 -- finish login success; 0 -- login handling
+ * return: -1 -- no match ssh login; 1 -- finish login success; 0 -- login handshakeing
  */
-int CSshAudit::parse_login(uint64_t auditid,char *str,int strlen)
+int CSshAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)
 {
 	int ret = -1;
 	map<uint64_t,int>::iterator itm;
@@ -219,7 +219,7 @@ int CTelnetAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 	_hex_dump((uint8_t*)p,hdrlen);
 	#endif
 	
-	ret = parse_login(item.auditid,p,hdrlen);
+	ret = parse_login(item.auditid,p,hdrlen,dir);
 	if(ret == 1)
 	{
 		item.apptype = ENUM_TCP_TELNET;
@@ -292,7 +292,7 @@ bool CTelnetAudit::match_login_rn(char *str,int strlen)
 }
 
 /*
- * telnet login handle:
+ * telnet login handshake:
  * 	server " login: " ------> client;
  * 	client ...        ------> server;
  * 	client "\r\n"     ------> server;
@@ -300,9 +300,9 @@ bool CTelnetAudit::match_login_rn(char *str,int strlen)
  * 	client ...        ------> server;
  * 	client "\r\n"     ------> server;
  *
- * return: -1 -- no match ssh login; 1 -- finish login success; 0 -- login handling
+ * return: -1 -- no match telnet login; 1 -- finish login success; 0 -- login handshakeing
  */
-int CTelnetAudit::parse_login(uint64_t auditid,char *str,int strlen)
+int CTelnetAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)
 {
 	int ret = -1;
 	map<uint64_t,int>::iterator itm;
@@ -352,12 +352,20 @@ CFtpAudit::CFtpAudit()
 }
 CFtpAudit::~CFtpAudit()
 {
-
+	_mFtpSes.clear();
 }
 int CFtpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 {
 	int ret = -1;
-	cout<<"CFtpAudit::audit()\n";
+	char *p = (char*)hdr;
+	//cout<<"CFtpAudit::audit()\n";
+
+	ret = parse_login(item.auditid,p,hdrlen,dir);
+	if(ret == 1)
+	{
+		item.apptype = ENUM_TCP_FTP;
+		item.ftypename = "TCP~FTP";
+	}
 	return ret;
 }
 
@@ -365,5 +373,88 @@ int CFtpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 int CFtpAudit::erase_auditid(uint64_t id)
 {
 	int ret = -1;
+	map<uint64_t,int>::iterator itm;
+	if((itm=_mFtpSes.find(id)) != _mFtpSes.end())
+	{
+		ret = 0;
+		_mFtpSes.erase(itm);
+	}
+	
+	return ret;
+}
+
+/*  
+ * return: true or false
+ */
+bool CFtpAudit::regex_match_strreg(char *str,string strreg,int strlen)
+{
+	bool ret = false;
+	if(str==NULL || strlen<=0)
+		return false;
+
+	regex reg(strreg);
+	if(regex_match(str,reg))	
+		ret = true;
+	else 
+		ret = false;
+	return ret;
+}
+/*
+ * ftp login handshake:
+ * 	server " login: " ------> client;
+ * 	client ...        ------> server;
+ *
+ * return: -1 -- no match ftp login; 1 -- finish login success; 0 -- login handshaking
+ */
+int CFtpAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)
+{
+	int ret = -1;
+	map<uint64_t,int>::iterator itm;
+
+	if((itm=_mFtpSes.find(auditid)) == _mFtpSes.end())
+	{
+		if(dir==ENUM_RSP && regex_match_strreg(str,REG_LOGIN_READY,strlen))
+		_mFtpSes[auditid] = ENUM_FTP_LOGIN_SERVICE_READY;
+		else
+		ret = -1;
+	}
+	else
+	{
+		ret = -1;
+		switch(itm->second)
+		{
+			case ENUM_FTP_LOGIN_SERVICE_READY:
+				if(dir==ENUM_REQ && regex_match_strreg(str,REG_LOGIN_USER,strlen))
+					itm->second += 1;
+				else
+					ret = -1;
+				break;
+			case ENUM_FTP_LOGIN_USER:
+				if(dir==ENUM_RSP && regex_match_strreg(str,REG_LOGIN_USEROK,strlen))
+					itm->second += 1;
+				else
+					ret = -1;
+			case ENUM_FTP_LOGIN_USEROK:
+				if(dir==ENUM_REQ && regex_match_strreg(str,REG_LOGIN_PASSWD,strlen))
+					itm->second += 1;
+				else
+					ret = -1;
+			case ENUM_FTP_LOGIN_PASSWD:
+				if(dir==ENUM_RSP && regex_match_strreg(str,REG_LOGIN_LOGININ,strlen))
+					itm->second += 1;
+				else
+					ret = -1;
+				break;
+			case ENUM_FTP_LOGIN_LOGININ:
+			case ENUM_FTP_LOGIN_SESSION:
+				cout<<"ffffffffffff ttttttttttttt pppppppppp\n";
+				ret = 1;
+				break;
+			default:
+				ret = -1;
+				break;
+		}
+	
+	}
 	return ret;
 }

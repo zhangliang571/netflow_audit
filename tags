@@ -46,6 +46,13 @@ ENUM_CLIENT_CLOSE_HALF	base.h	/^	ENUM_CLIENT_CLOSE_HALF,$/;"	e	enum:E_SESSION_ST
 ENUM_CLOSE_SUCCESS	base.h	/^	ENUM_CLOSE_SUCCESS,$/;"	e	enum:E_SESSION_STATE
 ENUM_CONNECT_REQ	base.h	/^	ENUM_CONNECT_REQ = 1,$/;"	e	enum:E_SESSION_STATE
 ENUM_CONNECT_RSP	base.h	/^	ENUM_CONNECT_RSP,$/;"	e	enum:E_SESSION_STATE
+ENUM_FTP_LOGIN_LOGININ	tcp_app_audit.h	/^	ENUM_FTP_LOGIN_LOGININ,$/;"	e	enum:_FTP_LOGIN_STATUS
+ENUM_FTP_LOGIN_NULL	tcp_app_audit.h	/^	ENUM_FTP_LOGIN_NULL = 0,$/;"	e	enum:_FTP_LOGIN_STATUS
+ENUM_FTP_LOGIN_PASSWD	tcp_app_audit.h	/^	ENUM_FTP_LOGIN_PASSWD,$/;"	e	enum:_FTP_LOGIN_STATUS
+ENUM_FTP_LOGIN_SERVICE_READY	tcp_app_audit.h	/^	ENUM_FTP_LOGIN_SERVICE_READY,$/;"	e	enum:_FTP_LOGIN_STATUS
+ENUM_FTP_LOGIN_SESSION	tcp_app_audit.h	/^	ENUM_FTP_LOGIN_SESSION,$/;"	e	enum:_FTP_LOGIN_STATUS
+ENUM_FTP_LOGIN_USER	tcp_app_audit.h	/^	ENUM_FTP_LOGIN_USER,$/;"	e	enum:_FTP_LOGIN_STATUS
+ENUM_FTP_LOGIN_USEROK	tcp_app_audit.h	/^	ENUM_FTP_LOGIN_USEROK,$/;"	e	enum:_FTP_LOGIN_STATUS
 ENUM_ICMP_ADDRESS	base.h	/^	ENUM_ICMP_ADDRESS,$/;"	e	enum:E_SESSION_STATE
 ENUM_ICMP_DEST_UNREACH	base.h	/^	ENUM_ICMP_DEST_UNREACH,$/;"	e	enum:E_SESSION_STATE
 ENUM_ICMP_ECHO	base.h	/^	ENUM_ICMP_ECHO, \/\/8$/;"	e	enum:E_SESSION_STATE
@@ -136,29 +143,36 @@ E_AUDIT_ETH_TYPE	protos_audit.h	/^enum E_AUDIT_ETH_TYPE$/;"	g
 E_SESSION_STATE	base.h	/^enum E_SESSION_STATE$/;"	g
 E_TCP_APP_TYPE	tcp_app_audit.h	/^enum E_TCP_APP_TYPE$/;"	g
 FLAGS	makefile	/^FLAGS:= -g $/;"	m
+FTP_LOGIN_STATUS	tcp_app_audit.h	/^}FTP_LOGIN_STATUS;$/;"	t	typeref:enum:_FTP_LOGIN_STATUS
 HAVE_PF_RING	netflow_audit.c++	21;"	d	file:
 INCLUDE	makefile	/^INCLUDE:=.\/$/;"	m
 IPPROTO_IPV4	proto_type.h	58;"	d
 LIBS	makefile	/^LIBS:= -lpthread -lpcap -lboost_date_time -lboost_regex -L \/usr\/local\/lib$/;"	m
 NO_CONNECT_TIMEOUT	base.h	21;"	d
 OBJS	makefile	/^OBJS:=$(patsubst %.c++, %.o, $(SRCS))$/;"	m
-REG_LOGIN	tcp_app_audit.h	115;"	d
-REG_PASSWD	tcp_app_audit.h	116;"	d
-REG_VER_EX	tcp_app_audit.h	91;"	d
+REG_LOGIN	tcp_app_audit.h	126;"	d
+REG_LOGIN_LOGININ	tcp_app_audit.h	149;"	d
+REG_LOGIN_PASSWD	tcp_app_audit.h	148;"	d
+REG_LOGIN_READY	tcp_app_audit.h	145;"	d
+REG_LOGIN_USER	tcp_app_audit.h	146;"	d
+REG_LOGIN_USEROK	tcp_app_audit.h	147;"	d
+REG_PASSWD	tcp_app_audit.h	127;"	d
+REG_VER_EX	tcp_app_audit.h	102;"	d
 Run	netflow_audit.c++	/^void CNetflowAudit::Run()$/;"	f	class:CNetflowAudit
 SAVE_FILE	base.h	13;"	d
 SAVE_TEMP_FILE	base.h	14;"	d
 SRCS	makefile	/^SRCS:=$(wildcard *.c++)$/;"	m
 SSH_LOGIN_STATUS	tcp_app_audit.h	/^}SSH_LOGIN_STATUS;$/;"	t	typeref:enum:_SSH_LOGIN_STATUS
-SSH_MSG_KEXDH_INIT	tcp_app_audit.h	94;"	d
-SSH_MSG_KEXDH_REPLY	tcp_app_audit.h	95;"	d
-SSH_MSG_KEYINIT	tcp_app_audit.h	92;"	d
-SSH_MSG_NEWKEYS	tcp_app_audit.h	93;"	d
+SSH_MSG_KEXDH_INIT	tcp_app_audit.h	105;"	d
+SSH_MSG_KEXDH_REPLY	tcp_app_audit.h	106;"	d
+SSH_MSG_KEYINIT	tcp_app_audit.h	103;"	d
+SSH_MSG_NEWKEYS	tcp_app_audit.h	104;"	d
 STREAM_DIR	base.h	/^enum STREAM_DIR$/;"	g
 TCP_TIMEOUT	base.h	20;"	d
 TELNET_LOGIN_STATUS	tcp_app_audit.h	/^}TELNET_LOGIN_STATUS;$/;"	t	typeref:enum:_TELNET_LOGIN_STATUS
 TimeoutList	netflow_audit.h	/^}TimeoutList;$/;"	t	typeref:struct:_timeoutList
 WDD_NETFLOW_AUDIT	base.h	16;"	d
+_FTP_LOGIN_STATUS	tcp_app_audit.h	/^typedef enum _FTP_LOGIN_STATUS$/;"	g
 _SSH_LOGIN_STATUS	tcp_app_audit.h	/^typedef enum _SSH_LOGIN_STATUS$/;"	g
 _TELNET_LOGIN_STATUS	tcp_app_audit.h	/^typedef enum _TELNET_LOGIN_STATUS$/;"	g
 __BASE_H___	base.h	2;"	d
@@ -175,6 +189,7 @@ _dir	tcp_app_audit.h	/^	int _dir;$/;"	m	class:CSshAudit
 _dir	tcp_app_audit.h	/^	int _dir;$/;"	m	class:CTelnetAudit
 _hex_dump	base.c++	/^void _hex_dump(const uint8_t *p,int len)$/;"	f
 _mCBaseAudit	netflow_audit.h	/^	map<int,CBaseAudit*> _mCBaseAudit;$/;"	m	class:CNetflowAudit
+_mFtpSes	tcp_app_audit.h	/^	map<uint64_t,int> _mFtpSes;$/;"	m	class:CFtpAudit
 _mSession	protos_audit.h	/^	map<string,stTblItem> _mSession;$/;"	m	class:CTcpAudit
 _mSessionTimeout	protos_audit.h	/^	map<string,stTblItem> _mSessionTimeout;$/;"	m	class:CTcpAudit
 _mSshSes	tcp_app_audit.h	/^	map<uint64_t,int> _mSshSes;$/;"	m	class:CSshAudit
@@ -275,12 +290,14 @@ name	protos_audit.h	/^	string name(){return "CUdpAudit";}$/;"	f	class:CUdpAudit
 name	protos_audit.h	/^	virtual string name(){}$/;"	f	class:CBaseAudit
 open_pcap	netflow_audit.c++	/^pcap_t* CNetflowAudit::open_pcap(const char *dev)$/;"	f	class:CNetflowAudit
 paddinglen	tcp_app_audit.h	/^	uint8_t paddinglen;$/;"	m	struct:key_exchange_hdr
-parse_login	tcp_app_audit.c++	/^int CSshAudit::parse_login(uint64_t auditid,char *str,int strlen)$/;"	f	class:CSshAudit
-parse_login	tcp_app_audit.c++	/^int CTelnetAudit::parse_login(uint64_t auditid,char *str,int strlen)$/;"	f	class:CTelnetAudit
+parse_login	tcp_app_audit.c++	/^int CFtpAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)$/;"	f	class:CFtpAudit
+parse_login	tcp_app_audit.c++	/^int CSshAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)$/;"	f	class:CSshAudit
+parse_login	tcp_app_audit.c++	/^int CTelnetAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)$/;"	f	class:CTelnetAudit
 pktlen	tcp_app_audit.h	/^	uint32_t pktlen;$/;"	m	struct:key_exchange_hdr
 recurse_get_timeout_session	base.c++	/^long recurse_get_timeout_session(vector<struct _mngTimeout> &v, int low, int height, string &strkey)$/;"	f
 regex_match_login	tcp_app_audit.c++	/^bool CTelnetAudit::regex_match_login(char *str,int strlen)$/;"	f	class:CTelnetAudit
 regex_match_passwd	tcp_app_audit.c++	/^bool CTelnetAudit::regex_match_passwd(char *str,int strlen)$/;"	f	class:CTelnetAudit
+regex_match_strreg	tcp_app_audit.c++	/^bool CFtpAudit::regex_match_strreg(char *str,string strreg,int strlen)$/;"	f	class:CFtpAudit
 regex_match_verex_login	tcp_app_audit.c++	/^bool CSshAudit::regex_match_verex_login(char *str,int strlen)$/;"	f	class:CSshAudit
 reqflow	base.h	/^	uint64_t reqflow;$/;"	m	struct:_stTblItem
 reqpkts	base.h	/^	uint64_t reqpkts;$/;"	m	struct:_stTblItem
