@@ -264,6 +264,7 @@ int CNetflowAudit::load_tblitem_2_ofstream(ofstream& of,mapT &m)
 		for(itm=m.begin();itm!=m.end();itm++)
 		{
 			ret++;
+
 		      of<<"0"<<","
 			<<"\""<<itm->second.auditid<<"\","
 			<<"\""<<itm->second.starttime<<"\","

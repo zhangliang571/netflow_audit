@@ -45,7 +45,7 @@ int CSshAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 	int ret = 0;
 	#if DEBUG
 	cout<<"CSshAudit::audit()\n";
-	_hex_dump(p,hdrlen);
+	_hex_dump((uint8_t*)p,hdrlen);
 	#endif
 	ret = parse_login(item.auditid,p,hdrlen,dir);
 	if(ret == 1)
@@ -138,8 +138,16 @@ int CSshAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)
 				{
 					struct key_exchange_hdr *keh;
 					keh = (struct key_exchange_hdr*)str;
-					if(keh->msgcode == SSH_MSG_KEXDH_INIT)
-						itm->second += 1;
+					if(keh->msgcode == SSH_MSG_DHKEX_INIT)
+					{
+						_dh_key_mode = DH_KEX;
+						itm->second = ENUM_SSH_LOGIN_DH_KEX_C;
+					}
+					else if(keh->msgcode == SSH_MSG_DHGEX_REQUEST)
+					{
+						_dh_key_mode = DH_GEX;
+						itm->second = ENUM_SSH_LOGIN_GEX_REQ;
+					}
 					else
 						ret = -1;
 
@@ -150,7 +158,7 @@ int CSshAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)
 					struct key_exchange_hdr *keh;
 					char *pkeh = NULL;
 					keh = (struct key_exchange_hdr*)str;
-					if(keh->msgcode == SSH_MSG_KEXDH_REPLY)
+					if(keh->msgcode == SSH_MSG_DHKEX_REPLY)
 					{
 					pkeh = (char*)(str + 4 + ntohl(keh->pktlen));
 					keh = (struct key_exchange_hdr*)(pkeh);
@@ -160,15 +168,57 @@ int CSshAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)
 						ret = -1;
 
 					}
+					else
+						ret = -1;
+				}
+				break;
+			case ENUM_SSH_LOGIN_GEX_REQ:
+				{
+					struct key_exchange_hdr *keh;
+					char *pkeh = NULL;
+					keh = (struct key_exchange_hdr*)str;
+					if(keh->msgcode == SSH_MSG_DHGEX_GROUP)
+					{
+						itm->second += 1;
+					}
+					else
+						ret = -1;
+				}
+				break;
+			case ENUM_SSH_LOGIN_GEX_GROUP:
+				{
+					struct key_exchange_hdr *keh;
+					char *pkeh = NULL;
+					keh = (struct key_exchange_hdr*)str;
+					if(keh->msgcode == SSH_MSG_DHGEX_INIT)
+					{
+						itm->second += 1;
+					}
+					else
+						ret = -1;
+				}
+				break;
+			case ENUM_SSH_LOGIN_GEX_INIT:
+				{
+					struct key_exchange_hdr *keh;
+					char *pkeh = NULL;
+					keh = (struct key_exchange_hdr*)str;
+					if(keh->msgcode == SSH_MSG_DHGEX_REPLY)
+					{
+						itm->second += 1;
+					}
+					else
+						ret = -1;
 				}
 				break;
 			case ENUM_SSH_LOGIN_DH_KEX_S:
+			case ENUM_SSH_LOGIN_GEX_REPLY:
 				{
 					struct key_exchange_hdr *keh;
 					keh = (struct key_exchange_hdr*)str;
 					if(keh->msgcode == SSH_MSG_NEWKEYS)
 					{
-						itm->second += 1;
+						itm->second = ENUM_SSH_LOGIN_NEW_KEY;
 					}
 					else
 					ret = -1;
@@ -447,7 +497,6 @@ int CFtpAudit::parse_login(uint64_t auditid,char *str,int strlen,int dir)
 				break;
 			case ENUM_FTP_LOGIN_LOGININ:
 			case ENUM_FTP_LOGIN_SESSION:
-				cout<<"ffffffffffff ttttttttttttt pppppppppp\n";
 				ret = 1;
 				break;
 			default:

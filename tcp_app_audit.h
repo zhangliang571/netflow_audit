@@ -41,6 +41,10 @@ typedef enum _SSH_LOGIN_STATUS
 	ENUM_SSH_LOGIN_KEX_S,
 	ENUM_SSH_LOGIN_DH_KEX_C,
 	ENUM_SSH_LOGIN_DH_KEX_S,
+	ENUM_SSH_LOGIN_GEX_REQ,
+	ENUM_SSH_LOGIN_GEX_GROUP,
+	ENUM_SSH_LOGIN_GEX_INIT,
+	ENUM_SSH_LOGIN_GEX_REPLY,
 	ENUM_SSH_LOGIN_NEW_KEY,
 	ENUM_SSH_LOGIN_SESSION,
 }SSH_LOGIN_STATUS;
@@ -99,11 +103,22 @@ private:
 private:
 
 	int _dir;
+	enum _DH_KEY_MOD
+	{
+		DH_KEX,
+		DH_GEX,
+	};
+	int _dh_key_mode;
 	#define REG_VER_EX  ("SSH-(\\d+).(\\d+)-.*")
 	#define SSH_MSG_KEYINIT 20
 	#define SSH_MSG_NEWKEYS 21
-	#define SSH_MSG_KEXDH_INIT 30
-	#define SSH_MSG_KEXDH_REPLY 31
+	#define SSH_MSG_DHKEX_INIT 30
+	#define SSH_MSG_DHKEX_REPLY 31
+	#define SSH_MSG_DHGEX_REQUEST 34
+	#define SSH_MSG_DHGEX_GROUP 31
+	#define SSH_MSG_DHGEX_INIT 32
+	#define SSH_MSG_DHGEX_REPLY 33
+
 
 	//key is audit
 	map<uint64_t,int> _mSshSes;

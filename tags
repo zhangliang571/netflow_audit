@@ -33,6 +33,8 @@ CUdpAudit	protos_audit.c++	/^CUdpAudit::CUdpAudit()$/;"	f	class:CUdpAudit
 CUdpAudit	protos_audit.h	/^class CUdpAudit:public CBaseAudit$/;"	c
 DATE_FORMAT	base.h	15;"	d
 DFLAGS	makefile	/^DFLAGS:= -DDEBUG$/;"	m
+DH_GEX	tcp_app_audit.h	/^		DH_GEX,$/;"	e	enum:CSshAudit::_DH_KEY_MOD
+DH_KEX	tcp_app_audit.h	/^		DH_KEX,$/;"	e	enum:CSshAudit::_DH_KEY_MOD
 ENUM_ARP_REQ	base.h	/^	ENUM_ARP_REQ, \/\/13$/;"	e	enum:E_SESSION_STATE
 ENUM_AUDIT_ARPTYPE_ARP	protos_audit.h	/^	ENUM_AUDIT_ARPTYPE_ARP = 0,$/;"	e	enum:E_AUDIT_ARP_TYPE
 ENUM_AUDIT_ARPTYPE_INARP	protos_audit.h	/^	ENUM_AUDIT_ARPTYPE_INARP,$/;"	e	enum:E_AUDIT_ARP_TYPE
@@ -66,6 +68,10 @@ ENUM_RST	base.h	/^	ENUM_RST,$/;"	e	enum:E_SESSION_STATE
 ENUM_SERVER_CLOSE_HALF	base.h	/^	ENUM_SERVER_CLOSE_HALF,$/;"	e	enum:E_SESSION_STATE
 ENUM_SSH_LOGIN_DH_KEX_C	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_DH_KEX_C,$/;"	e	enum:_SSH_LOGIN_STATUS
 ENUM_SSH_LOGIN_DH_KEX_S	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_DH_KEX_S,$/;"	e	enum:_SSH_LOGIN_STATUS
+ENUM_SSH_LOGIN_GEX_GROUP	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_GEX_GROUP,$/;"	e	enum:_SSH_LOGIN_STATUS
+ENUM_SSH_LOGIN_GEX_INIT	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_GEX_INIT,$/;"	e	enum:_SSH_LOGIN_STATUS
+ENUM_SSH_LOGIN_GEX_REPLY	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_GEX_REPLY,$/;"	e	enum:_SSH_LOGIN_STATUS
+ENUM_SSH_LOGIN_GEX_REQ	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_GEX_REQ,$/;"	e	enum:_SSH_LOGIN_STATUS
 ENUM_SSH_LOGIN_KEX_C	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_KEX_C,$/;"	e	enum:_SSH_LOGIN_STATUS
 ENUM_SSH_LOGIN_KEX_S	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_KEX_S,$/;"	e	enum:_SSH_LOGIN_STATUS
 ENUM_SSH_LOGIN_NEW_KEY	tcp_app_audit.h	/^	ENUM_SSH_LOGIN_NEW_KEY,$/;"	e	enum:_SSH_LOGIN_STATUS
@@ -150,28 +156,33 @@ IPPROTO_IPV4	proto_type.h	58;"	d
 LIBS	makefile	/^LIBS:= -lpthread -lpcap -lboost_date_time -lboost_regex -L \/usr\/local\/lib$/;"	m
 NO_CONNECT_TIMEOUT	base.h	21;"	d
 OBJS	makefile	/^OBJS:=$(patsubst %.c++, %.o, $(SRCS))$/;"	m
-REG_LOGIN	tcp_app_audit.h	126;"	d
-REG_LOGIN_LOGININ	tcp_app_audit.h	149;"	d
-REG_LOGIN_PASSWD	tcp_app_audit.h	148;"	d
-REG_LOGIN_READY	tcp_app_audit.h	145;"	d
-REG_LOGIN_USER	tcp_app_audit.h	146;"	d
-REG_LOGIN_USEROK	tcp_app_audit.h	147;"	d
-REG_PASSWD	tcp_app_audit.h	127;"	d
-REG_VER_EX	tcp_app_audit.h	102;"	d
+REG_LOGIN	tcp_app_audit.h	141;"	d
+REG_LOGIN_LOGININ	tcp_app_audit.h	164;"	d
+REG_LOGIN_PASSWD	tcp_app_audit.h	163;"	d
+REG_LOGIN_READY	tcp_app_audit.h	160;"	d
+REG_LOGIN_USER	tcp_app_audit.h	161;"	d
+REG_LOGIN_USEROK	tcp_app_audit.h	162;"	d
+REG_PASSWD	tcp_app_audit.h	142;"	d
+REG_VER_EX	tcp_app_audit.h	112;"	d
 Run	netflow_audit.c++	/^void CNetflowAudit::Run()$/;"	f	class:CNetflowAudit
 SAVE_FILE	base.h	13;"	d
 SAVE_TEMP_FILE	base.h	14;"	d
 SRCS	makefile	/^SRCS:=$(wildcard *.c++)$/;"	m
 SSH_LOGIN_STATUS	tcp_app_audit.h	/^}SSH_LOGIN_STATUS;$/;"	t	typeref:enum:_SSH_LOGIN_STATUS
-SSH_MSG_KEXDH_INIT	tcp_app_audit.h	105;"	d
-SSH_MSG_KEXDH_REPLY	tcp_app_audit.h	106;"	d
-SSH_MSG_KEYINIT	tcp_app_audit.h	103;"	d
-SSH_MSG_NEWKEYS	tcp_app_audit.h	104;"	d
+SSH_MSG_DHGEX_GROUP	tcp_app_audit.h	118;"	d
+SSH_MSG_DHGEX_INIT	tcp_app_audit.h	119;"	d
+SSH_MSG_DHGEX_REPLY	tcp_app_audit.h	120;"	d
+SSH_MSG_DHGEX_REQUEST	tcp_app_audit.h	117;"	d
+SSH_MSG_DHKEX_INIT	tcp_app_audit.h	115;"	d
+SSH_MSG_DHKEX_REPLY	tcp_app_audit.h	116;"	d
+SSH_MSG_KEYINIT	tcp_app_audit.h	113;"	d
+SSH_MSG_NEWKEYS	tcp_app_audit.h	114;"	d
 STREAM_DIR	base.h	/^enum STREAM_DIR$/;"	g
 TCP_TIMEOUT	base.h	20;"	d
 TELNET_LOGIN_STATUS	tcp_app_audit.h	/^}TELNET_LOGIN_STATUS;$/;"	t	typeref:enum:_TELNET_LOGIN_STATUS
 TimeoutList	netflow_audit.h	/^}TimeoutList;$/;"	t	typeref:struct:_timeoutList
 WDD_NETFLOW_AUDIT	base.h	16;"	d
+_DH_KEY_MOD	tcp_app_audit.h	/^	enum _DH_KEY_MOD$/;"	g	class:CSshAudit
 _FTP_LOGIN_STATUS	tcp_app_audit.h	/^typedef enum _FTP_LOGIN_STATUS$/;"	g
 _SSH_LOGIN_STATUS	tcp_app_audit.h	/^typedef enum _SSH_LOGIN_STATUS$/;"	g
 _TELNET_LOGIN_STATUS	tcp_app_audit.h	/^typedef enum _TELNET_LOGIN_STATUS$/;"	g
@@ -184,6 +195,7 @@ __TCP_APP_AUDIT_H__	tcp_app_audit.h	2;"	d
 _aCBaseAudit	netflow_audit.h	/^	CBaseAudit* _aCBaseAudit[ENUM_AUDIT_ETHTYPE_TOT];$/;"	m	class:CNetflowAudit
 _aCTcpAppAudit	protos_audit.h	/^	CTcpBaseAudit* _aCTcpAppAudit[ENUM_TCP_TOT];$/;"	m	class:CTcpAudit
 _char_dump	base.c++	/^void _char_dump(const uint8_t *p,int len)$/;"	f
+_dh_key_mode	tcp_app_audit.h	/^	int _dh_key_mode;$/;"	m	class:CSshAudit
 _dir	protos_audit.h	/^	enum STREAM_DIR _dir;$/;"	m	class:CBaseAudit	typeref:enum:CBaseAudit::STREAM_DIR
 _dir	tcp_app_audit.h	/^	int _dir;$/;"	m	class:CSshAudit
 _dir	tcp_app_audit.h	/^	int _dir;$/;"	m	class:CTelnetAudit

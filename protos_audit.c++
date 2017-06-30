@@ -92,6 +92,8 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 	char *pappdata = NULL;
 	map<string,stTblItem>::iterator itm ;
 	string key;
+	string keyFinC;
+	string keyFinS;
 	struct _mngTimeout vmng;
 
 	tcph = (struct tcphdr*)((u_char*)hdr);
@@ -202,7 +204,6 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 	else if(tcph->syn == 1 && tcph->ack==1)
 	{
 		_dir = ENUM_RSP;
-		cout<<"rsp 3 handshakes ..............sip:"<<item.dip<<" sport:"<<dport<<" dip:"<<item.sip<<" dport:"<<sport<<endl;
 		key = lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport);
 		sem_wait(&_sem);////////////////////////////////
 		if((itm=_mSessionTimeout.find(key)) != _mSessionTimeout.end())
@@ -218,82 +219,91 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 	//tcp connect end
 	else if(tcph->fin == 1 && tcph->ack==1)
 	{
-		cout<<"end  tcp connect...............sip:"<<item.sip<<" dip:"<<item.dip<<"sport:"<<sport<<" dport:"<<dport<<endl;
-		key = lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport);
+		keyFinC = lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport);
+		keyFinS = lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport);
 		sem_wait(&_sem);////////////////////////////////
-		if((itm=_mSession.find(key)) != _mSession.end())
+		if((itm=_mSession.find(keyFinC)) != _mSession.end())
 		{
 			_dir = ENUM_REQ;
-			if(itm->second.sessionstate == ENUM_SERVER_CLOSE_HALF)
+
+			itm->second.endtime = item.starttime;
+			itm->second.reqpkts++;
+			itm->second.reqflow += item.reqflow;
+			itm->second.rsppkts++;
+			itm->second.reqflow += 54;
+			itm->second.sessionstate  = ENUM_CLIENT_CLOSE_HALF;		
+			_mSessionTimeout[keyFinC] = itm->second;
+			erase_session(keyFinC);
+
+		}
+		else if((itm=_mSession.find(keyFinS)) != _mSession.end())
+		{
+			_dir = ENUM_RSP;
+
+			itm->second.endtime = item.starttime;
+			itm->second.rsppkts++;
+			itm->second.rspflow += item.reqflow;
+			itm->second.reqpkts++;
+			itm->second.reqflow += 54;
+			itm->second.sessionstate  = ENUM_SERVER_CLOSE_HALF;		
+			_mSessionTimeout[keyFinS] = itm->second;
+			erase_session(keyFinS);
+
+
+		}
+		//if _mSession not find, then find in _mSessionTimeout
+		else if((itm=_mSessionTimeout.find(keyFinC)) != _mSessionTimeout.end())
+		{
+			_dir = ENUM_REQ;
+			//if((itm->second.sessionstate == ENUM_SERVER_CLOSE_HALF)|| (itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF))
 			{
 				itm->second.endtime = item.starttime;
 				itm->second.reqpkts++;
 				itm->second.reqflow += item.reqflow;
+				itm->second.rsppkts++;
+				itm->second.rspflow += 54;//ack pkt length
 				itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
-				_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
-				erase_session(key);
-				_mSessionTimeout.erase(key);
+				_mmSessionEnd.insert(pair<string,stTblItem>(keyFinC,itm->second));
+				_mSessionTimeout.erase(keyFinC);
 
 				vector<struct _mngTimeout>::iterator itv;
 				for(itv=_vSessionTimeout.begin();itv!=_vSessionTimeout.end();itv++)
 				{
-					if(itv->strMapkey == key)
+					if(itv->strMapkey == keyFinC)
 					{
 						_vSessionTimeout.erase(itv);	
 						break;
 					}
 				}
 			}
-			else
+		}
+		else if((itm=_mSessionTimeout.find(keyFinS)) != _mSessionTimeout.end())
+		{
+			_dir = ENUM_RSP;
+			//if((itm->second.sessionstate == ENUM_SERVER_CLOSE_HALF)|| (itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF))
 			{
 				itm->second.endtime = item.starttime;
+				itm->second.rsppkts++;
+				itm->second.rspflow += item.reqflow;
 				itm->second.reqpkts++;
-				itm->second.reqflow += item.reqflow;
-				itm->second.sessionstate  = ENUM_CLIENT_CLOSE_HALF;		
-				_mSessionTimeout[key] = itm->second;
-				erase_session(key);
-			}
+				itm->second.reqflow += 54;//ack pkt length
+				itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
+				_mmSessionEnd.insert(pair<string,stTblItem>(keyFinS,itm->second));
+				_mSessionTimeout.erase(keyFinS);
 
-		}
-		else
-		{
-			key = lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport)+":"+lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport);
-			if((itm=_mSession.find(key)) != _mSession.end())
-			{
-				_dir = ENUM_RSP;
-				if(itm->second.sessionstate == ENUM_CLIENT_CLOSE_HALF)
+				vector<struct _mngTimeout>::iterator itv;
+				for(itv=_vSessionTimeout.begin();itv!=_vSessionTimeout.end();itv++)
 				{
-					itm->second.endtime = item.starttime;
-					itm->second.rsppkts++;
-					itm->second.rspflow += item.reqflow;
-					itm->second.sessionstate  = ENUM_CLOSE_SUCCESS;		
-					_mmSessionEnd.insert(pair<string,stTblItem>(key,itm->second));
-					erase_session(key);
-					_mSessionTimeout.erase(key);
-
-					vector<struct _mngTimeout>::iterator itv;
-					for(itv=_vSessionTimeout.begin();itv!=_vSessionTimeout.end();itv++)
+					if(itv->strMapkey == keyFinS)
 					{
-						if(itv->strMapkey == key)
-						{
-							_vSessionTimeout.erase(itv);	
-							break;
-						}
+						_vSessionTimeout.erase(itv);	
+						break;
 					}
+				}
 
-				}
-				else
-				{
-					itm->second.endtime = item.starttime;
-					itm->second.rsppkts++;
-					itm->second.rspflow += item.reqflow;
-					itm->second.sessionstate  = ENUM_SERVER_CLOSE_HALF;		
-					_mSessionTimeout[key] = itm->second;
-					erase_session(key);
-				}
 			}
-
 		}
+
 		sem_post(&_sem);////////////////////////////////
 	}
 	else
@@ -302,8 +312,6 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 		pappdata = (char*)((char*)hdr + tcph->doff*4);
 
 
-		if(appdatalen > 0)
-		{
 
 		key = lexical_cast<string>(item.sip)+":"+lexical_cast<string>(sport)+":"+lexical_cast<string>(item.dip)+":"+lexical_cast<string>(dport);
 		if((itm=_mSession.find(key)) != _mSession.end())
@@ -312,6 +320,8 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 			itm->second.reqpkts++;
 			itm->second.reqflow += item.reqflow;
 
+			if(appdatalen > 0)
+			{
 			if(sport == 20 || dport == 20)
 			{
 				itm->second.apptype = ENUM_TCP_FTP;
@@ -332,6 +342,12 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 				//itm->second.apptype = ENUM_TCP_TELNET;
 				ret = _aCTcpAppAudit[ENUM_TCP_TELNET]->audit(pappdata,appdatalen,itm->second,_dir);
 			}
+			else if(sport == 80 || dport == 80)
+			{
+				itm->second.apptype = ENUM_TCP_HTTP;
+				//ret = _aCTcpAppAudit[ENUM_TCP_HTTP]->audit(pappdata,appdatalen,itm->second,_dir);
+			}
+			//not the well-know port
 			else
 			{
 				//audit tcp app layer
@@ -342,6 +358,8 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 						break;
 				}
 			}
+
+			}//if(appdatalen>0)
 		}
 		else
 		{
@@ -352,6 +370,8 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 				itm->second.rsppkts++;
 				itm->second.rspflow += item.reqflow;
 
+				if(appdatalen>0)
+				{
 				if(sport == 20 || dport == 20)
 				{
 					itm->second.apptype = ENUM_TCP_FTP;
@@ -372,6 +392,12 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 					//itm->second.apptype = ENUM_TCP_TELNET;
 					ret = _aCTcpAppAudit[ENUM_TCP_TELNET]->audit(pappdata,appdatalen,itm->second,_dir);
 				}
+				else if(sport == 80 || dport == 80)
+				{
+					itm->second.apptype = ENUM_TCP_HTTP;
+					//ret = _aCTcpAppAudit[ENUM_TCP_HTTP]->audit(pappdata,appdatalen,itm->second,_dir);
+				}
+				//not the well-know port
 				else
 				{
 					//audit tcp app layer
@@ -382,10 +408,11 @@ int CTcpAudit::audit(const void *hdr, int hdrlen, stTblItem &item,int dir)
 							break;
 					}
 				}
+				}//if(appdatalen>0)
 			}
 		}
 
-		}
+		
 	}
 
 	return ret;
